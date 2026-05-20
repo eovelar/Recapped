@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,8 +47,7 @@ fun ChartsRoute(
         state = state,
         onQueryChange = viewModel::onQueryChange,
         onRetry = viewModel::load,
-        onArtistClick = onArtistClick,
-        onSignOut = viewModel::signOut
+        onArtistClick = onArtistClick
     )
 }
 
@@ -59,22 +57,21 @@ fun ChartsScreen(
     state: ChartsUiState,
     onQueryChange: (String) -> Unit,
     onRetry: () -> Unit,
-    onArtistClick: (String) -> Unit,
-    onSignOut: () -> Unit
+    onArtistClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(RecappedColors.Background)
-            .windowInsetsPadding(WindowInsets.systemBars)
+            // Sólo status bar: el bottom bar lo aporta el Scaffold del NavGraph.
+            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        // Topbar
+        // Topbar (sin logout — ahora vive en Perfil)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = stringResource(R.string.charts_title),
@@ -83,13 +80,6 @@ fun ChartsScreen(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.6).sp
             )
-            IconButton(onClick = onSignOut) {
-                Icon(
-                    Icons.Default.Logout,
-                    contentDescription = stringResource(R.string.sign_out),
-                    tint = RecappedColors.Muted
-                )
-            }
         }
 
         // Search bar (búsqueda reactiva)
