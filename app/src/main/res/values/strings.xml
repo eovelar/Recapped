@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Recapped</string>
+    <string name="continue_with_google">Continuar con Google</string>
+    <string name="login_subtitle">Tus hábitos musicales, analizados.\nTu historia sonora, recapitulada.</string>
+    <string name="charts_title">Top Charts</string>
+    <string name="search_placeholder">Buscar artista…</string>
+    <string name="tab_artists">Artistas</string>
+    <string name="tab_tracks">Canciones</string>
+    <string name="retry">Reintentar</string>
+    <string name="loading">Cargando tu historial…</string>
+    <string name="error_generic">Algo no anduvo. Probá de nuevo.</string>
+    <string name="empty">No hay resultados</string>
+    <string name="sign_out">Cerrar sesión</string>
+    <string name="open_spotify">Abrir en Spotify</string>
+</resources>

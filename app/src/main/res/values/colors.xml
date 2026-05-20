@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_black">#FF080808</color>
+    <color name="brand_red">#FFCC1500</color>
+    <color name="brand_orange">#FFE85A00</color>
+    <color name="brand_gold">#FFD4A017</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="muted">#73FFFFFF</color>
+</resources>
