@@ -38,20 +38,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.recapped.app.domain.model.Artist
+import com.recapped.app.ui.components.ArtistAvatar
 import com.recapped.app.ui.components.GlowSpot
 import com.recapped.app.ui.components.Glows
-import com.recapped.app.ui.components.ArtistAvatar
 import com.recapped.app.ui.theme.BrandGradient
 import com.recapped.app.ui.theme.RecappedColors
 
@@ -81,22 +81,22 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RecappedColors.Background)
+            .background(Color.Black)
     ) {
         Glows(
             spots = listOf(
                 GlowSpot(
-                    xFraction = 0.64f,
-                    yFraction = -0.10f,
-                    radiusFraction = 0.55f,
-                    color = RecappedColors.BrandOrange.copy(alpha = 0.36f),
+                    xFraction = 0.72f,
+                    yFraction = -0.08f,
+                    radiusFraction = 0.50f,
+                    color = RecappedColors.BrandOrange.copy(alpha = 0.22f),
                     drift = true
                 ),
                 GlowSpot(
-                    xFraction = 0.94f,
-                    yFraction = 0.30f,
+                    xFraction = 1.02f,
+                    yFraction = 0.32f,
                     radiusFraction = 0.42f,
-                    color = RecappedColors.BrandOrange.copy(alpha = 0.18f),
+                    color = RecappedColors.BrandOrange.copy(alpha = 0.13f),
                     drift = true
                 )
             )
@@ -112,7 +112,7 @@ fun HomeScreen(
                 top = 22.dp,
                 bottom = 96.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
                 Header(state.header)
@@ -206,7 +206,7 @@ private fun Header(header: HomeHeader) {
         ) {
             Text(
                 text = "BIENVENIDO",
-                color = RecappedColors.Dim,
+                color = Color.White.copy(alpha = 0.32f),
                 style = MaterialTheme.typography.labelSmall,
                 letterSpacing = 1.5.sp,
                 fontWeight = FontWeight.SemiBold
@@ -288,60 +288,50 @@ private fun StatCard(
 ) {
     Column(
         modifier = modifier
-            .height(64.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(62.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(
                 if (highlighted) {
-                    RecappedColors.BrandOrange.copy(alpha = 0.10f)
+                    Color(0xFF160C06).copy(alpha = 0.95f)
                 } else {
-                    RecappedColors.Surface
+                    Color(0xFF111111).copy(alpha = 0.95f)
                 }
             )
             .border(
-                width = 0.7.dp,
+                width = 0.8.dp,
                 color = if (highlighted) {
-                    RecappedColors.BrandOrange.copy(alpha = 0.65f)
+                    RecappedColors.BrandOrange.copy(alpha = 0.70f)
                 } else {
-                    RecappedColors.Border
+                    Color.White.copy(alpha = 0.12f)
                 },
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(15.dp)
             )
             .padding(horizontal = 8.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        if (highlighted) {
-            Text(
-                text = value,
-                style = TextStyle(
-                    brush = BrandGradient,
-                    fontFamily = MaterialTheme.typography.displayLarge.fontFamily,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 23.sp,
-                    letterSpacing = (-0.8).sp
-                ),
-                maxLines = 1
-            )
-        } else {
-            Text(
-                text = value,
-                color = Color.White,
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 23.sp,
-                letterSpacing = (-0.8).sp,
-                maxLines = 1
-            )
-        }
+        Text(
+            text = value,
+            color = if (highlighted) RecappedColors.BrandOrange else Color.White,
+            style = MaterialTheme.typography.displayLarge,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 23.sp,
+            letterSpacing = (-0.8).sp,
+            maxLines = 1
+        )
 
         Spacer(modifier = Modifier.height(1.dp))
 
         Text(
             text = label.uppercase(),
-            color = if (highlighted) RecappedColors.BrandOrange else RecappedColors.Dim,
+            color = if (highlighted) {
+                RecappedColors.BrandOrange.copy(alpha = 0.85f)
+            } else {
+                Color.White.copy(alpha = 0.26f)
+            },
             style = MaterialTheme.typography.labelSmall,
-            fontSize = 9.sp,
-            letterSpacing = 1.sp,
+            fontSize = 8.sp,
+            letterSpacing = 1.3.sp,
             maxLines = 1
         )
     }
@@ -358,79 +348,131 @@ private fun LastRecapCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(RecappedColors.Surface)
+            .height(156.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF111111).copy(alpha = 0.96f))
             .border(
-                width = 0.7.dp,
-                color = RecappedColors.Border,
-                shape = RoundedCornerShape(22.dp)
+                width = 0.8.dp,
+                color = Color.White.copy(alpha = 0.13f),
+                shape = RoundedCornerShape(18.dp)
             )
             .clickable(onClick = onClick)
-            .padding(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 34.dp, y = (-18).dp)
-                .size(140.dp)
-                .clip(CircleShape)
-                .background(RecappedColors.BrandOrange.copy(alpha = 0.18f))
-        )
+        Canvas(
+            modifier = Modifier.matchParentSize()
+        ) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFF6A00).copy(alpha = 0.42f),
+                        Color(0xFFFF6A00).copy(alpha = 0.16f),
+                        Color.Transparent
+                    ),
+                    center = Offset(
+                        x = size.width * 0.86f,
+                        y = size.height * 0.38f
+                    ),
+                    radius = size.width * 0.36f
+                ),
+                radius = size.width * 0.36f,
+                center = Offset(
+                    x = size.width * 0.86f,
+                    y = size.height * 0.38f
+                )
+            )
 
-        Column {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF4A1A87).copy(alpha = 0.18f),
+                        Color(0xFF4A1A87).copy(alpha = 0.06f),
+                        Color.Transparent
+                    ),
+                    center = Offset(
+                        x = size.width * 0.10f,
+                        y = size.height * 0.86f
+                    ),
+                    radius = size.width * 0.28f
+                ),
+                radius = size.width * 0.28f,
+                center = Offset(
+                    x = size.width * 0.10f,
+                    y = size.height * 0.86f
+                )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(99.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .background(Color.White.copy(alpha = 0.07f))
                     .border(
-                        width = 0.6.dp,
-                        color = Color.White.copy(alpha = 0.10f),
+                        width = 0.7.dp,
+                        color = Color.White.copy(alpha = 0.13f),
                         shape = RoundedCornerShape(99.dp)
                     )
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .padding(horizontal = 14.dp, vertical = 5.dp)
             ) {
                 Text(
                     text = "Marzo 2025",
-                    color = RecappedColors.Muted,
+                    color = Color.White.copy(alpha = 0.58f),
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(11.dp))
 
             Text(
                 text = "Recap Mensual",
                 color = Color.White,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                letterSpacing = (-0.5).sp,
                 maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(5.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Text(
                 text = "847 canciones · $totalArtists artistas · 62 horas",
-                color = RecappedColors.Muted,
+                color = Color.White.copy(alpha = 0.38f),
                 style = MaterialTheme.typography.bodySmall,
+                fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(BrandGradient)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                RecappedColors.BrandOrange.copy(alpha = 0.85f),
+                                RecappedColors.BrandOrange.copy(alpha = 0.16f),
+                                Color.Transparent
+                            )
+                        )
+                    )
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(9.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(28.dp),
+                verticalAlignment = Alignment.Top
             ) {
                 RecapMetric(
                     value = "#1",
@@ -456,12 +498,17 @@ private fun RecapMetric(
     value: String,
     label: String
 ) {
-    Column {
+    Column(
+        modifier = Modifier.width(70.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
         Text(
             text = value,
             color = Color.White,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.ExtraBold,
+            fontFamily = MaterialTheme.typography.displayLarge.fontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp,
+            letterSpacing = (-0.4).sp,
             maxLines = 1
         )
 
@@ -469,13 +516,12 @@ private fun RecapMetric(
 
         Text(
             text = label.uppercase(),
-            color = RecappedColors.Dim,
+            color = Color.White.copy(alpha = 0.22f),
             style = MaterialTheme.typography.labelSmall,
-            fontSize = 9.sp,
+            fontSize = 7.sp,
             letterSpacing = 0.8.sp,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(92.dp)
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -486,7 +532,7 @@ private fun RecapMetric(
 private fun SectionLabel(text: String) {
     Text(
         text = text.uppercase(),
-        color = RecappedColors.Dim,
+        color = Color.White.copy(alpha = 0.32f),
         style = MaterialTheme.typography.labelSmall,
         letterSpacing = 1.4.sp,
         modifier = Modifier.padding(top = 2.dp)
@@ -505,10 +551,10 @@ private fun ArtistRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(RecappedColors.Surface)
+            .background(Color(0xFF111111).copy(alpha = 0.92f))
             .border(
                 width = 0.7.dp,
-                color = RecappedColors.Border,
+                color = Color.White.copy(alpha = 0.11f),
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable(onClick = onClick)
@@ -532,14 +578,6 @@ private fun ArtistRow(
 
         Spacer(modifier = Modifier.width(13.dp))
 
-//        AlbumTile(
-//            label = artist.name.firstOrNull()?.uppercase() ?: "?",
-//            color = when (position) {
-//                1 -> Color(0xFF4A1A87)
-//                2 -> Color(0xFF4A1A87)
-//                else -> Color(0xFF123A7A)
-//            }
-//        )
         ArtistAvatar(
             name = artist.name,
             imageUrl = artist.imageUrl,
@@ -564,7 +602,7 @@ private fun ArtistRow(
 
             Text(
                 text = "${compact(artist.playcount)} scrobbles",
-                color = RecappedColors.Muted,
+                color = Color.White.copy(alpha = 0.38f),
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1
             )
@@ -573,7 +611,7 @@ private fun ArtistRow(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = RecappedColors.Dim,
+            tint = Color.White.copy(alpha = 0.26f),
             modifier = Modifier.size(16.dp)
         )
     }
@@ -590,10 +628,10 @@ private fun ForgottenArtistCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(RecappedColors.Surface)
+            .background(Color(0xFF111111).copy(alpha = 0.92f))
             .border(
                 width = 0.7.dp,
-                color = RecappedColors.Border,
+                color = Color.White.copy(alpha = 0.11f),
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable(enabled = artist != null, onClick = onClick)
@@ -624,7 +662,7 @@ private fun ForgottenArtistCard(
             Row {
                 Text(
                     text = "Hace ",
-                    color = RecappedColors.Muted,
+                    color = Color.White.copy(alpha = 0.38f),
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -637,7 +675,7 @@ private fun ForgottenArtistCard(
 
                 Text(
                     text = " que no lo escuchás",
-                    color = RecappedColors.Muted,
+                    color = Color.White.copy(alpha = 0.38f),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -650,7 +688,7 @@ private fun ForgottenArtistCard(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = RecappedColors.Dim,
+            tint = Color.White.copy(alpha = 0.26f),
             modifier = Modifier.size(16.dp)
         )
     }
@@ -667,7 +705,14 @@ private fun AlbumTile(
         modifier = Modifier
             .size(46.dp)
             .clip(RoundedCornerShape(9.dp))
-            .background(color.copy(alpha = 0.88f)),
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        color.copy(alpha = 0.95f),
+                        Color.Black.copy(alpha = 0.95f)
+                    )
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
         Box(
@@ -748,7 +793,7 @@ private fun LoadingBlock() {
 
         Text(
             text = "Cargando tu historial musical...",
-            color = RecappedColors.Muted,
+            color = Color.White.copy(alpha = 0.42f),
             style = MaterialTheme.typography.bodyMedium
         )
     }
