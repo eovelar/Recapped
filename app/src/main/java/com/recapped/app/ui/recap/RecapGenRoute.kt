@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.recapped.app.R
 import com.recapped.app.ui.theme.BrandGradient
 import com.recapped.app.ui.theme.RecappedColors
+import com.recapped.app.ui.theme.Syne
 import kotlinx.coroutines.delay
 
 private enum class RecapPeriod(
@@ -180,7 +181,8 @@ private fun RecapTopBar() {
         Text(
             text = "Tu recap",
             color = Color.White,
-            fontSize = 18.sp,
+            fontSize = 21.sp,
+            fontFamily = Syne,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = (-0.3).sp
         )
