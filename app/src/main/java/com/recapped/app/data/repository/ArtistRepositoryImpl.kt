@@ -37,7 +37,8 @@ class ArtistRepositoryImpl @Inject constructor(
         val list = response.artists.artist.mapIndexed { idx, dto ->
             val lastFmImage = pickImage(dto.image)
 
-            // limitamos la búsqueda de imágenes a los primeros 15 artistas para evitar demasiadas requests y lograr una carga más fluida
+            // Limitamos la búsqueda de imágenes a los primeros 15 artistas
+            // para evitar demasiadas requests y lograr una carga más fluida.
             val shouldSearchDeezer = idx < 15 &&
                     (lastFmImage.isNullOrBlank() || isLastFmPlaceholder(lastFmImage))
 
@@ -86,11 +87,31 @@ class ArtistRepositoryImpl @Inject constructor(
                 rank = 0
             )
 
+            val topTracks = tracks.mapIndexed { idx, track ->
+                val lastFmTrackImage = pickImage(track.image)
+
+                // Limitamos la búsqueda de covers a los primeros 10 tracks
+                // para no hacer demasiadas requests a Deezer.
+                val shouldSearchDeezerCover = idx < 10 &&
+                        (lastFmTrackImage.isNullOrBlank() || isLastFmPlaceholder(lastFmTrackImage))
+
+                val finalTrackImage = if (shouldSearchDeezerCover) {
+                    getDeezerTrackCover(
+                        artistName = info.name,
+                        trackName = track.name
+                    )
+                } else {
+                    lastFmTrackImage
+                }
+
+                track.toDomain(imageUrlOverride = finalTrackImage)
+            }
+
             ArtistDetail(
                 artist = artist,
                 bio = info.bio?.summary?.replace(Regex("<a [^>]+>.*?</a>"), "")?.trim(),
                 tags = info.tags?.tag?.map { it.name }.orEmpty(),
-                topTracks = tracks.map { it.toDomain() }
+                topTracks = topTracks
             )
         }
 
@@ -118,10 +139,12 @@ class ArtistRepositoryImpl @Inject constructor(
         rank = rank
     )
 
-    private fun TrackDto.toDomain() = Track(
+    private fun TrackDto.toDomain(
+        imageUrlOverride: String? = null
+    ) = Track(
         name = name,
         playcount = playcount?.toLongOrNull() ?: 0L,
-        imageUrl = pickImage(image)
+        imageUrl = imageUrlOverride ?: pickImage(image)
     )
 
     /**
@@ -158,6 +181,28 @@ class ArtistRepositoryImpl @Inject constructor(
                 ?: artist?.pictureBig
                 ?: artist?.pictureMedium
                 ?: artist?.picture
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private suspend fun getDeezerTrackCover(
+        artistName: String,
+        trackName: String
+    ): String? {
+        return try {
+            val query = "$artistName $trackName"
+            val response = deezerApi.searchTrack(query)
+
+            val track = response.data.firstOrNull { deezerTrack ->
+                deezerTrack.title.equals(trackName, ignoreCase = true) &&
+                        deezerTrack.artist?.name.equals(artistName, ignoreCase = true)
+            } ?: response.data.firstOrNull()
+
+            track?.album?.coverXl
+                ?: track?.album?.coverBig
+                ?: track?.album?.coverMedium
+                ?: track?.album?.cover
         } catch (e: Exception) {
             null
         }
