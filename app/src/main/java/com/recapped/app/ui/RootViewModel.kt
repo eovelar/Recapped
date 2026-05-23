@@ -17,6 +17,7 @@ import javax.inject.Inject
 sealed interface AuthUiState {
     data object Checking : AuthUiState
     data object SignedOut : AuthUiState
+    data class NeedsOnboarding(val uid: String, val displayName: String?) : AuthUiState
     data class SignedIn(val uid: String, val displayName: String?) : AuthUiState
 }
 
@@ -26,9 +27,15 @@ class RootViewModel @Inject constructor(
 ) : ViewModel() {
 
     val authState: StateFlow<AuthUiState> = authRepository.currentUser
-        .map<_, AuthUiState> { user ->
-            if (user == null) AuthUiState.SignedOut
-            else AuthUiState.SignedIn(user.uid, user.displayName)
+        .map { user ->
+            if (user == null) {
+                AuthUiState.SignedOut
+            } else {
+                AuthUiState.NeedsOnboarding(
+                    uid = user.uid,
+                    displayName = user.displayName
+                )
+            }
         }
         .stateIn(
             scope = viewModelScope,

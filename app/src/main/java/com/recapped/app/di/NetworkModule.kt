@@ -1,5 +1,6 @@
 package com.recapped.app.di
 
+import com.recapped.app.data.remote.DeezerApi
 import com.recapped.app.data.remote.LastFmApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -50,4 +51,17 @@ object NetworkModule {
     @Singleton
     fun provideLastFmApi(retrofit: Retrofit): LastFmApi =
         retrofit.create(LastFmApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideDeezerApi(
+        client: OkHttpClient,
+        moshi: Moshi
+    ): DeezerApi =
+        Retrofit.Builder()
+            .baseUrl("https://api.deezer.com/")
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(DeezerApi::class.java)
 }
