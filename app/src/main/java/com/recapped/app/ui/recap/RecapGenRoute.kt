@@ -1,5 +1,11 @@
 package com.recapped.app.ui.recap
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -165,6 +171,41 @@ private fun RecapTopBar() {
 
 @Composable
 private fun VinylHero() {
+    val infiniteTransition = rememberInfiniteTransition(label = "vinyl_animation")
+
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 22000,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "vinyl_rotation"
+    )
+
+    val glowScale by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3200),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "vinyl_glow_scale"
+    )
+
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.16f,
+        targetValue = 0.28f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3200),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "vinyl_glow_alpha"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -174,12 +215,15 @@ private fun VinylHero() {
         Box(
             modifier = Modifier
                 .size(248.dp)
-                .graphicsLayer { alpha = 0.95f }
+                .graphicsLayer {
+                    scaleX = glowScale
+                    scaleY = glowScale
+                }
                 .drawBehind {
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                RecappedColors.BrandOrange.copy(alpha = 0.24f),
+                                RecappedColors.BrandOrange.copy(alpha = glowAlpha),
                                 Color.Transparent
                             ),
                             center = center,
@@ -190,14 +234,27 @@ private fun VinylHero() {
         )
 
         Image(
-            painter = painterResource(id = R.drawable.vinilo),
+            painter = painterResource(id = R.drawable.vinilo_separado),
             contentDescription = "Vinilo Recapped",
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(292.dp)
                 .graphicsLayer {
+                    rotationZ = rotation
                     shadowElevation = 18.dp.toPx()
                     shape = CircleShape
+                    clip = false
+                }
+        )
+
+        Image(
+            painter = painterResource(id = R.drawable.pua),
+            contentDescription = "Púa",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(292.dp)
+                .graphicsLayer {
+                    shadowElevation = 14.dp.toPx()
                     clip = false
                 }
         )
