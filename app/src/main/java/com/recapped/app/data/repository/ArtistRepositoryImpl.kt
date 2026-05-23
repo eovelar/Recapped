@@ -37,7 +37,11 @@ class ArtistRepositoryImpl @Inject constructor(
         val list = response.artists.artist.mapIndexed { idx, dto ->
             val lastFmImage = pickImage(dto.image)
 
-            val finalImage = if (lastFmImage.isNullOrBlank() || isLastFmPlaceholder(lastFmImage)) {
+            // limitamos la búsqueda de imágenes a los primeros 15 artistas para evitar demasiadas requests y lograr una carga más fluida
+            val shouldSearchDeezer = idx < 15 &&
+                    (lastFmImage.isNullOrBlank() || isLastFmPlaceholder(lastFmImage))
+
+            val finalImage = if (shouldSearchDeezer) {
                 getDeezerArtistImage(dto.name)
             } else {
                 lastFmImage
@@ -100,7 +104,7 @@ class ArtistRepositoryImpl @Inject constructor(
         else -> Resource.Error(e.message ?: "Error inesperado", e)
     }
 
-    // ── Mappers DTO → Domain ──
+    // ── mappers DTO - domain ──
 
     private fun ArtistDto.toDomain(
         rank: Int,
