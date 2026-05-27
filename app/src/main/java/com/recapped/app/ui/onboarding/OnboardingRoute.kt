@@ -34,8 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -78,6 +78,9 @@ fun OnboardingRoute(
     OnboardingScreen(
         state = state,
         onLastFmUsernameChange = viewModel::onLastFmUsernameChange,
+        onValidateLastFmUsername = { onValid ->
+            viewModel.validateLastFmUsername(onValid)
+        },
         onFinish = { viewModel.finish(onCompleted) },
         onSkip = { viewModel.skip(onCompleted) }
     )
@@ -87,6 +90,7 @@ fun OnboardingRoute(
 private fun OnboardingScreen(
     state: OnboardingUiState,
     onLastFmUsernameChange: (String) -> Unit,
+    onValidateLastFmUsername: (() -> Unit) -> Unit,
     onFinish: () -> Unit,
     onSkip: () -> Unit
 ) {
@@ -171,13 +175,15 @@ private fun OnboardingScreen(
                     LastFmInput(
                         value = state.lastFmUsername,
                         isError = state.error != null,
+                        enabled = !state.isSaving,
                         onValueChange = onLastFmUsernameChange
                     )
 
                     Box(
                         modifier = Modifier
-                            .height(22.dp)
-                            .fillMaxWidth(),
+                            .height(42.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (state.error != null) {
@@ -202,7 +208,7 @@ private fun OnboardingScreen(
                 username = state.lastFmUsername,
                 isSaving = state.isSaving,
                 onConnect = {
-                    if (state.lastFmUsername.isNotBlank()) {
+                    onValidateLastFmUsername {
                         step = 1
                     }
                 },
@@ -250,6 +256,7 @@ private fun StepNumberCard(step: Int) {
 private fun LastFmInput(
     value: String,
     isError: Boolean,
+    enabled: Boolean,
     onValueChange: (String) -> Unit
 ) {
     Box(
@@ -260,7 +267,11 @@ private fun LastFmInput(
             .background(RecappedColors.SurfaceBright)
             .border(
                 width = 0.5.dp,
-                color = if (isError) RecappedColors.Error.copy(alpha = 0.7f) else RecappedColors.BorderBright,
+                color = if (isError) {
+                    RecappedColors.Error.copy(alpha = 0.7f)
+                } else {
+                    RecappedColors.BorderBright
+                },
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -275,6 +286,7 @@ private fun LastFmInput(
                         .take(40)
                 )
             },
+            enabled = enabled,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.merge(
                 TextStyle(
