@@ -8,11 +8,13 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <!-- Tema para la Splash API. Hereda de Theme.SplashScreen -->
+    <!-- Tema para la Splash API -->
     <style name="Theme.Recapped.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/bg_black</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="windowSplashScreenAnimationDuration">600</item>
         <item name="postSplashScreenTheme">@style/Theme.Recapped</item>
     </style>
+
 </resources>

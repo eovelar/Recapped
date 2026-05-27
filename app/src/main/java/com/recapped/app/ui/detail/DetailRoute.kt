@@ -2,15 +2,33 @@ package com.recapped.app.ui.detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +48,7 @@ import com.recapped.app.domain.model.ArtistDetail
 import com.recapped.app.domain.model.Track
 import com.recapped.app.ui.components.RecappedChip
 import com.recapped.app.ui.theme.RecappedColors
+import com.recapped.app.ui.theme.Unbounded
 
 @Composable
 fun DetailRoute(
@@ -38,6 +57,7 @@ fun DetailRoute(
     viewModel: DetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
     DetailScreen(
         title = state.artistName.ifBlank { artistName },
         state = state,
@@ -62,22 +82,30 @@ fun DetailScreen(
             DetailPhase.Loading -> CenterContent {
                 CircularProgressIndicator(color = RecappedColors.BrandOrange)
             }
+
             is DetailPhase.Error -> CenterContent {
                 Text(
-                    phase.message,
+                    text = phase.message,
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = onRetry, shape = CircleShape) {
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onRetry,
+                    shape = CircleShape
+                ) {
                     Text(androidx.compose.ui.res.stringResource(R.string.retry))
                 }
             }
-            is DetailPhase.Success -> Content(detail = phase.detail)
+
+            is DetailPhase.Success -> {
+                Content(detail = phase.detail)
+            }
         }
 
-        // Back button siempre visible arriba
         IconButton(
             onClick = onBack,
             modifier = Modifier
@@ -85,15 +113,19 @@ fun DetailScreen(
                 .padding(8.dp)
         ) {
             Box(
-                Modifier
+                modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.5f))
-                    .border(0.5.dp, RecappedColors.Border, CircleShape),
+                    .border(
+                        width = 0.5.dp,
+                        color = RecappedColors.Border,
+                        shape = CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver",
                     tint = Color.White,
                     modifier = Modifier.size(18.dp)
@@ -105,14 +137,16 @@ fun DetailScreen(
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun Content(detail: ArtistDetail) {
+private fun Content(
+    detail: ArtistDetail
+) {
     val scroll = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scroll)
     ) {
-        // Hero
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -128,7 +162,7 @@ private fun Content(detail: ArtistDetail) {
                     .fillMaxSize()
                     .background(RecappedColors.SurfaceBright)
             )
-            // Gradient overlay
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -141,22 +175,29 @@ private fun Content(detail: ArtistDetail) {
                         )
                     )
             )
+
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 if (detail.tags.isNotEmpty()) {
-                    RecappedChip(text = detail.tags.first().replaceFirstChar { it.uppercase() })
-                    Spacer(Modifier.height(8.dp))
+                    RecappedChip(
+                        text = detail.tags.first().replaceFirstChar { it.uppercase() }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
+
                 Text(
                     text = detail.artist.name,
                     color = Color.White,
                     fontSize = 30.sp,
+                    fontFamily = Unbounded,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-1.2).sp
                 )
+
                 Text(
                     text = "${detail.artist.playcount} scrobbles · ${detail.artist.listeners} listeners",
                     color = RecappedColors.Muted,
@@ -165,33 +206,44 @@ private fun Content(detail: ArtistDetail) {
             }
         }
 
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Bio
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
             if (!detail.bio.isNullOrBlank()) {
                 SectionLabel("Sobre el artista")
+
                 Text(
                     text = detail.bio,
                     color = RecappedColors.OnSurface.copy(alpha = 0.85f),
                     fontSize = 13.sp,
                     lineHeight = 20.sp
                 )
-                Spacer(Modifier.height(20.dp))
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Top tracks
             SectionLabel("Top canciones")
+
             detail.topTracks.forEachIndexed { idx, track ->
-                TrackRow(idx + 1, track)
-                if (idx < detail.topTracks.lastIndex) Spacer(Modifier.height(6.dp))
+                TrackRow(
+                    rank = idx + 1,
+                    track = track
+                )
+
+                if (idx < detail.topTracks.lastIndex) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
             }
 
-            Spacer(Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(
+    text: String
+) {
     Text(
         text = text.uppercase(),
         color = RecappedColors.Dim,
@@ -199,18 +251,26 @@ private fun SectionLabel(text: String) {
         letterSpacing = 1.5.sp,
         fontWeight = FontWeight.SemiBold
     )
-    Spacer(Modifier.height(10.dp))
+
+    Spacer(modifier = Modifier.height(10.dp))
 }
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun TrackRow(rank: Int, track: Track) {
-    Row(
+private fun TrackRow(
+    rank: Int,
+    track: Track
+) {
+    androidx.compose.foundation.layout.Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(RecappedColors.Surface)
-            .border(0.5.dp, RecappedColors.Border, RoundedCornerShape(12.dp))
+            .border(
+                width = 0.5.dp,
+                color = RecappedColors.Border,
+                shape = RoundedCornerShape(12.dp)
+            )
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -221,6 +281,7 @@ private fun TrackRow(rank: Int, track: Track) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(20.dp)
         )
+
         GlideImage(
             model = track.imageUrl,
             contentDescription = track.name,
@@ -231,8 +292,12 @@ private fun TrackRow(rank: Int, track: Track) {
                 .clip(RoundedCornerShape(8.dp))
                 .background(RecappedColors.SurfaceBright)
         )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
                 text = track.name,
                 color = Color.White,
@@ -241,6 +306,7 @@ private fun TrackRow(rank: Int, track: Track) {
                 maxLines = 1
             )
         }
+
         Text(
             text = track.playcount.toString(),
             color = RecappedColors.Dim,
@@ -251,7 +317,9 @@ private fun TrackRow(rank: Int, track: Track) {
 }
 
 @Composable
-private fun CenterContent(content: @Composable ColumnScope.() -> Unit) {
+private fun CenterContent(
+    content: @Composable ColumnScope.() -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
