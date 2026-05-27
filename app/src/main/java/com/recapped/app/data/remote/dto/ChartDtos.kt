@@ -9,6 +9,11 @@ data class TopArtistsResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class UserTopArtistsResponse(
+    @Json(name = "topartists") val topArtists: ArtistsWrapper
+)
+
+@JsonClass(generateAdapter = true)
 data class ArtistsWrapper(
     @Json(name = "artist") val artist: List<ArtistDto>,
     @Json(name = "@attr") val attr: AttrDto?

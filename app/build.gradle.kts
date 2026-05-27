@@ -21,6 +21,7 @@ android {
 
         // last.fm key
         buildConfigField("String", "LASTFM_API_KEY", "\"2a89b6df091312d12da52773c9db5486\"")
+
         // ID de Firebase
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"1051145475349-rh16v76p5pt7ra7h49a1shb5mmale1lb.apps.googleusercontent.com\"")
     }
@@ -34,17 +35,25 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
     }
+
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 
@@ -72,7 +81,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Retrofit
+    // Retrofit / OkHttp / Moshi
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.moshi)
     implementation(libs.okhttp)
@@ -88,8 +97,9 @@ dependencies {
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
 
-    // Credential Manager (Google Sign-In moderno)
+    // Credential Manager / Google Sign-In
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.googleid)

@@ -3,16 +3,10 @@ package com.recapped.app.data.remote
 import com.recapped.app.data.remote.dto.ArtistInfoResponse
 import com.recapped.app.data.remote.dto.TopArtistsResponse
 import com.recapped.app.data.remote.dto.TopTracksResponse
+import com.recapped.app.data.remote.dto.UserTopArtistsResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 
-/**
- * Cliente Retrofit para la API REST pública de Last.fm.
- * Doc: https://www.last.fm/api
- *
- * Todos los endpoints usan el mismo path "/2.0/" y se diferencian
- * por el query param "method".
- */
 interface LastFmApi {
 
     @GET("2.0/")
@@ -23,6 +17,47 @@ interface LastFmApi {
         @Query("api_key") apiKey: String,
         @Query("format") format: String = "json"
     ): TopArtistsResponse
+
+    @GET("2.0/")
+    suspend fun getTopTracks(
+        @Query("method") method: String = "chart.gettoptracks",
+        @Query("limit") limit: Int = 50,
+        @Query("page") page: Int = 1,
+        @Query("api_key") apiKey: String,
+        @Query("format") format: String = "json"
+    ): TopTracksResponse
+
+    @GET("2.0/")
+    suspend fun getUserTopArtists(
+        @Query("method") method: String = "user.gettopartists",
+        @Query("user") user: String,
+        @Query("period") period: String = "1month",
+        @Query("limit") limit: Int = 50,
+        @Query("page") page: Int = 1,
+        @Query("api_key") apiKey: String,
+        @Query("format") format: String = "json"
+    ): UserTopArtistsResponse
+
+    @GET("2.0/")
+    suspend fun getUserTopTracks(
+        @Query("method") method: String = "user.gettoptracks",
+        @Query("user") user: String,
+        @Query("period") period: String = "1month",
+        @Query("limit") limit: Int = 50,
+        @Query("page") page: Int = 1,
+        @Query("api_key") apiKey: String,
+        @Query("format") format: String = "json"
+    ): TopTracksResponse
+
+    @GET("2.0/")
+    suspend fun getUserRecentTracks(
+        @Query("method") method: String = "user.getrecenttracks",
+        @Query("user") user: String,
+        @Query("limit") limit: Int = 20,
+        @Query("page") page: Int = 1,
+        @Query("api_key") apiKey: String,
+        @Query("format") format: String = "json"
+    ): TopTracksResponse
 
     @GET("2.0/")
     suspend fun getArtistInfo(

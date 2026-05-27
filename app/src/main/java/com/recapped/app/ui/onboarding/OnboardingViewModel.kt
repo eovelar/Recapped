@@ -2,8 +2,10 @@ package com.recapped.app.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.recapped.app.data.repository.ArtistRepository
 import com.recapped.app.data.repository.AuthRepository
 import com.recapped.app.data.repository.OnboardingRepository
+import com.recapped.app.domain.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +24,8 @@ data class OnboardingUiState(
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val onboardingRepository: OnboardingRepository
+    private val onboardingRepository: OnboardingRepository,
+    private val artistRepository: ArtistRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingUiState())
@@ -34,6 +37,7 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.currentUser.collect { user ->
                 uid = user?.uid
+
                 _state.update {
                     it.copy(
                         displayName = user?.displayName?.takeIf { name -> name.isNotBlank() }
@@ -61,22 +65,48 @@ class OnboardingViewModel @Inject constructor(
         val username = state.value.lastFmUsername.trim()
 
         if (currentUid == null) {
-            _state.update { it.copy(error = "No se encontró la sesión activa.") }
+            _state.update {
+                it.copy(error = "No se encontró la sesión activa.")
+            }
             return
         }
 
         if (username.isBlank()) {
-            _state.update { it.copy(error = "Ingresá tu usuario de Last.fm para vincularlo.") }
+            _state.update {
+                it.copy(error = "Ingresá tu usuario de Last.fm para vincularlo.")
+            }
             return
         }
 
         viewModelScope.launch {
-            _state.update { it.copy(isSaving = true, error = null) }
+            _state.update {
+                it.copy(
+                    isSaving = true,
+                    error = null
+                )
+            }
+
+            val validationResult = artistRepository.validateLastFmUsername(username)
+
+            if (validationResult is Resource.Error) {
+                _state.update {
+                    it.copy(
+                        isSaving = false,
+                        error = validationResult.message.ifBlank {
+                            "No encontramos ese usuario de Last.fm."
+                        }
+                    )
+                }
+                return@launch
+            }
+
             runCatching {
                 onboardingRepository.saveLastFmUsername(currentUid, username)
                 onboardingRepository.completeOnboarding(currentUid)
             }.onSuccess {
-                _state.update { it.copy(isSaving = false) }
+                _state.update {
+                    it.copy(isSaving = false)
+                }
                 onCompleted()
             }.onFailure { throwable ->
                 _state.update {
@@ -91,16 +121,37 @@ class OnboardingViewModel @Inject constructor(
 
     fun skip(onCompleted: () -> Unit) {
         val currentUid = uid
+
         if (currentUid == null) {
-            _state.update { it.copy(error = "No se encontró la sesión activa.") }
+            _state.update {
+                it.copy(error = "No se encontró la sesión activa.")
+            }
             return
         }
 
         viewModelScope.launch {
-            _state.update { it.copy(isSaving = true, error = null) }
-            onboardingRepository.completeOnboarding(currentUid)
-            _state.update { it.copy(isSaving = false) }
-            onCompleted()
+            _state.update {
+                it.copy(
+                    isSaving = true,
+                    error = null
+                )
+            }
+
+            runCatching {
+                onboardingRepository.completeOnboarding(currentUid)
+            }.onSuccess {
+                _state.update {
+                    it.copy(isSaving = false)
+                }
+                onCompleted()
+            }.onFailure { throwable ->
+                _state.update {
+                    it.copy(
+                        isSaving = false,
+                        error = throwable.message ?: "No se pudo completar el onboarding."
+                    )
+                }
+            }
         }
     }
 }

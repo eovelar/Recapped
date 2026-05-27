@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,40 +33,87 @@ class ArtistRepositoryImpl @Inject constructor(
     override fun getTopArtists(): Flow<Resource<List<Artist>>> = flow {
         emit(Resource.Loading)
 
-        val response = api.getTopArtists(apiKey = apiKey, limit = 50)
+        val response = api.getTopArtists(
+            apiKey = apiKey,
+            limit = 50
+        )
 
-        val list = response.artists.artist.mapIndexed { idx, dto ->
-            val lastFmImage = pickImage(dto.image)
-
-            // Limitamos la búsqueda de imágenes a los primeros 15 artistas
-            // para evitar demasiadas requests y lograr una carga más fluida.
-            val shouldSearchDeezer = idx < 15 &&
-                    (lastFmImage.isNullOrBlank() || isLastFmPlaceholder(lastFmImage))
-
-            val finalImage = if (shouldSearchDeezer) {
-                getDeezerArtistImage(dto.name)
-            } else {
-                lastFmImage
-            }
-
-            dto.toDomain(
-                rank = idx + 1,
-                imageUrlOverride = finalImage
-            )
-        }
+        val list = mapArtistsWithImages(
+            artists = response.artists.artist
+        )
 
         emit(Resource.Success(list))
     }
         .catch { e -> emit(mapError(e)) }
         .flowOn(Dispatchers.IO)
 
+    override fun getUserTopArtists(
+        username: String,
+        period: String
+    ): Flow<Resource<List<Artist>>> = flow {
+        emit(Resource.Loading)
+
+        val cleanUsername = username.trim()
+
+        if (cleanUsername.isBlank()) {
+            emit(Resource.Error("No hay usuario de Last.fm vinculado."))
+            return@flow
+        }
+
+        val response = api.getUserTopArtists(
+            user = cleanUsername,
+            period = period,
+            apiKey = apiKey,
+            limit = 12
+        )
+
+        val list = mapArtistsWithImages(
+            artists = response.topArtists.artist
+        )
+
+        emit(Resource.Success(list))
+    }
+        .catch { e -> emit(mapError(e)) }
+        .flowOn(Dispatchers.IO)
+
+    override suspend fun validateLastFmUsername(username: String): Resource<Unit> {
+        return try {
+            val cleanUsername = username.trim()
+
+            if (cleanUsername.isBlank()) {
+                return Resource.Error("Ingresá tu usuario de Last.fm.")
+            }
+
+            api.getUserTopArtists(
+                user = cleanUsername,
+                period = "1month",
+                apiKey = apiKey,
+                limit = 1
+            )
+
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            mapError(e)
+        }
+    }
+
     override fun getArtistDetail(name: String): Flow<Resource<ArtistDetail>> = flow {
         emit(Resource.Loading)
 
         val detail = coroutineScope {
-            // Pedidos en paralelo: info + top tracks
-            val infoDeferred = async { api.getArtistInfo(artist = name, apiKey = apiKey) }
-            val tracksDeferred = async { api.getArtistTopTracks(artist = name, apiKey = apiKey) }
+            val infoDeferred = async {
+                api.getArtistInfo(
+                    artist = name,
+                    apiKey = apiKey
+                )
+            }
+
+            val tracksDeferred = async {
+                api.getArtistTopTracks(
+                    artist = name,
+                    apiKey = apiKey
+                )
+            }
 
             val info = infoDeferred.await().artist
             val tracks = tracksDeferred.await().topTracks.track
@@ -90,8 +138,6 @@ class ArtistRepositoryImpl @Inject constructor(
             val topTracks = tracks.mapIndexed { idx, track ->
                 val lastFmTrackImage = pickImage(track.image)
 
-                // Limitamos la búsqueda de covers a los primeros 10 tracks
-                // para no hacer demasiadas requests a Deezer.
                 val shouldSearchDeezerCover = idx < 10 &&
                         (lastFmTrackImage.isNullOrBlank() || isLastFmPlaceholder(lastFmTrackImage))
 
@@ -104,12 +150,16 @@ class ArtistRepositoryImpl @Inject constructor(
                     lastFmTrackImage
                 }
 
-                track.toDomain(imageUrlOverride = finalTrackImage)
+                track.toDomain(
+                    imageUrlOverride = finalTrackImage
+                )
             }
 
             ArtistDetail(
                 artist = artist,
-                bio = info.bio?.summary?.replace(Regex("<a [^>]+>.*?</a>"), "")?.trim(),
+                bio = info.bio?.summary
+                    ?.replace(Regex("<a [^>]+>.*?</a>"), "")
+                    ?.trim(),
                 tags = info.tags?.tag?.map { it.name }.orEmpty(),
                 topTracks = topTracks
             )
@@ -120,12 +170,56 @@ class ArtistRepositoryImpl @Inject constructor(
         .catch { e -> emit(mapError(e)) }
         .flowOn(Dispatchers.IO)
 
-    private fun mapError(e: Throwable): Resource.Error = when (e) {
-        is IOException -> Resource.Error("No hay conexión a Internet", e)
-        else -> Resource.Error(e.message ?: "Error inesperado", e)
+    private suspend fun mapArtistsWithImages(
+        artists: List<ArtistDto>
+    ): List<Artist> {
+        return artists.mapIndexed { idx, dto ->
+            val lastFmImage = pickImage(dto.image)
+
+            val shouldSearchDeezer = idx < 6 &&
+                    (lastFmImage.isNullOrBlank() || isLastFmPlaceholder(lastFmImage))
+
+            val finalImage = if (shouldSearchDeezer) {
+                getDeezerArtistImage(dto.name)
+            } else {
+                lastFmImage
+            }
+
+            dto.toDomain(
+                rank = idx + 1,
+                imageUrlOverride = finalImage
+            )
+        }
     }
 
-    // ── mappers DTO - domain ──
+    private fun mapError(e: Throwable): Resource.Error = when (e) {
+        is IOException -> {
+            Resource.Error("No hay conexión a Internet", e)
+        }
+
+        is HttpException -> {
+            when (e.code()) {
+                404 -> Resource.Error(
+                    "No encontramos ese usuario de Last.fm. Revisá que esté escrito correctamente.",
+                    e
+                )
+
+                403 -> Resource.Error(
+                    "No se pudo acceder a ese perfil de Last.fm.",
+                    e
+                )
+
+                else -> Resource.Error(
+                    "Error de Last.fm (${e.code()}). Intentá nuevamente.",
+                    e
+                )
+            }
+        }
+
+        else -> {
+            Resource.Error(e.message ?: "Error inesperado", e)
+        }
+    }
 
     private fun ArtistDto.toDomain(
         rank: Int,
@@ -147,11 +241,6 @@ class ArtistRepositoryImpl @Inject constructor(
         imageUrl = imageUrlOverride ?: pickImage(image)
     )
 
-    /**
-     * Last.fm devuelve imágenes en varios tamaños.
-     * Si devuelve una imagen real, la usamos.
-     * Si devuelve el placeholder de estrella, después buscamos en Deezer.
-     */
     private fun pickImage(images: List<ImageDto>?): String? {
         val validImages = images
             .orEmpty()
@@ -169,7 +258,9 @@ class ArtistRepositoryImpl @Inject constructor(
         return url.contains("2a96cbd8b46e442fc41c2b86b821562f")
     }
 
-    private suspend fun getDeezerArtistImage(artistName: String): String? {
+    private suspend fun getDeezerArtistImage(
+        artistName: String
+    ): String? {
         return try {
             val response = deezerApi.searchArtist(artistName)
 
