@@ -69,18 +69,16 @@ private enum class RecapPeriod(
 }
 
 @Composable
-fun RecapGenRoute() {
+fun RecapGenRoute(
+    onRecapGenerated: () -> Unit
+) {
     var selectedPeriod by remember { mutableStateOf(RecapPeriod.Month) }
     var isGenerating by remember { mutableStateOf(false) }
 
     LaunchedEffect(isGenerating) {
         if (isGenerating) {
             delay(2500)
-
-            // Próximo paso:
-            // cuando exista la pantalla de resultados, reemplazar esto por:
-            // navController.navigate("recap_result")
-
+            onRecapGenerated()
             isGenerating = false
         }
     }

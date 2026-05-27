@@ -23,6 +23,7 @@ import com.recapped.app.ui.login.LoginRoute
 import com.recapped.app.ui.onboarding.OnboardingRoute
 import com.recapped.app.ui.profile.ProfileRoute
 import com.recapped.app.ui.recap.RecapGenRoute
+import com.recapped.app.ui.recap.RecapResultRoute
 import com.recapped.app.ui.theme.RecappedColors
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -33,6 +34,7 @@ object Routes {
     const val HOME = "home"
     const val CHARTS = "charts"
     const val RECAP_GEN = "recap_gen"
+    const val RECAP_RESULT = "recap_result"
     const val PROFILE = "profile"
     const val DETAIL = "detail/{artistName}"
 
@@ -40,7 +42,10 @@ object Routes {
         "detail/" + URLEncoder.encode(name, Charsets.UTF_8.name())
 }
 
-/** Rutas que conviven con el bottom bar. Detail, Login y Onboarding quedan a pantalla completa. */
+/**
+ * Rutas que conviven con el bottom bar.
+ * Detail, Login, Onboarding y RecapResult quedan a pantalla completa.
+ */
 private val TAB_ROUTES = setOf(
     Routes.HOME,
     Routes.CHARTS,
@@ -52,7 +57,6 @@ private val TAB_ROUTES = setOf(
 fun RecappedNavGraph(authState: AuthUiState) {
     val nav = rememberNavController()
 
-    // Re-routea según cambios de sesión en caliente.
     LaunchedEffect(authState) {
         when (authState) {
             is AuthUiState.SignedIn -> {
@@ -129,7 +133,22 @@ fun RecappedNavGraph(authState: AuthUiState) {
             }
 
             composable(Routes.RECAP_GEN) {
-                RecapGenRoute()
+                RecapGenRoute(
+                    onRecapGenerated = {
+                        nav.navigate(Routes.RECAP_RESULT)
+                    }
+                )
+            }
+
+            composable(Routes.RECAP_RESULT) {
+                RecapResultRoute(
+                    onBack = {
+                        nav.popBackStack()
+                    },
+                    onShare = {
+                        // Próximo paso: implementar compartir recap.
+                    }
+                )
             }
 
             composable(Routes.PROFILE) {
@@ -139,6 +158,7 @@ fun RecappedNavGraph(authState: AuthUiState) {
             composable(Routes.DETAIL) { backEntry ->
                 val raw = backEntry.arguments?.getString("artistName").orEmpty()
                 val name = URLDecoder.decode(raw, Charsets.UTF_8.name())
+
                 DetailRoute(
                     artistName = name,
                     onBack = { nav.popBackStack() }
@@ -153,7 +173,9 @@ fun RecappedNavGraph(authState: AuthUiState) {
  */
 private fun NavHostController.switchTab(tab: RecappedTab) {
     navigate(tab.route) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
         launchSingleTop = true
         restoreState = true
     }
