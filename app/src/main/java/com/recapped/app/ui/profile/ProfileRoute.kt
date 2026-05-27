@@ -48,7 +48,8 @@ import com.recapped.app.ui.theme.Unbounded
 fun ProfileRoute(
     viewModel: ProfileViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
-    onEditProfile: () -> Unit = {}
+    onEditProfile: () -> Unit = {},
+    onRecapHistory: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -56,6 +57,7 @@ fun ProfileRoute(
         state = state,
         onBack = onBack,
         onEditProfile = onEditProfile,
+        onRecapHistory = onRecapHistory,
         onSignOut = viewModel::signOut
     )
 }
@@ -65,6 +67,7 @@ fun ProfileScreen(
     state: ProfileUiState,
     onBack: () -> Unit,
     onEditProfile: () -> Unit,
+    onRecapHistory: () -> Unit,
     onSignOut: () -> Unit
 ) {
     Box(
@@ -106,7 +109,8 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             ProfileIdentity(
-                displayName = state.displayName
+                displayName = state.displayName,
+                onEditProfile = onEditProfile
             )
 
             Spacer(modifier = Modifier.height(22.dp))
@@ -139,7 +143,8 @@ fun ProfileScreen(
 
                 ProfileOptionRow(
                     title = "Historial",
-                    subtitle = "Todos tus recaps"
+                    subtitle = "Todos tus recaps",
+                    onClick = onRecapHistory
                 )
 
                 ProfileOptionRow(
@@ -204,7 +209,8 @@ private fun ProfileHeader(
 
 @Composable
 private fun ProfileIdentity(
-    displayName: String
+    displayName: String,
+    onEditProfile: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -243,7 +249,7 @@ private fun ProfileIdentity(
                         color = Color.White.copy(alpha = 0.14f),
                         shape = CircleShape
                     )
-                    .clickable(onClick = onEditProfilePlaceholder),
+                    .clickable(onClick = onEditProfile),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -269,8 +275,6 @@ private fun ProfileIdentity(
         )
     }
 }
-
-private val onEditProfilePlaceholder: () -> Unit = {}
 
 @Composable
 private fun ProfileStatsRow(
