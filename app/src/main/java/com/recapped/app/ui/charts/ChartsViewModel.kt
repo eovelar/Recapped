@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.recapped.app.data.repository.ArtistRepository
 import com.recapped.app.data.repository.AuthRepository
+import com.recapped.app.data.repository.UserProfileRepository
 import com.recapped.app.domain.Resource
 import com.recapped.app.domain.model.Artist
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,9 +54,12 @@ data class ChartsUiState(
     val filteredArtists: List<Artist>
         get() = when (phase) {
             is ChartsPhase.Success -> {
-                if (query.isBlank()) phase.artists
-                else phase.artists.filter { artist ->
-                    artist.name.contains(query, ignoreCase = true)
+                if (query.isBlank()) {
+                    phase.artists
+                } else {
+                    phase.artists.filter { artist ->
+                        artist.name.contains(query, ignoreCase = true)
+                    }
                 }
             }
 
@@ -65,10 +69,13 @@ data class ChartsUiState(
     val filteredSongs: List<ChartSong>
         get() = when (phase) {
             is ChartsPhase.Success -> {
-                if (query.isBlank()) phase.songs
-                else phase.songs.filter { song ->
-                    song.name.contains(query, ignoreCase = true) ||
-                            song.artistName.contains(query, ignoreCase = true)
+                if (query.isBlank()) {
+                    phase.songs
+                } else {
+                    phase.songs.filter { song ->
+                        song.name.contains(query, ignoreCase = true) ||
+                                song.artistName.contains(query, ignoreCase = true)
+                    }
                 }
             }
 
@@ -82,6 +89,8 @@ class ChartsViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
+    private val userProfileRepository = UserProfileRepository()
+
     private val _state = MutableStateFlow(ChartsUiState())
     val state: StateFlow<ChartsUiState> = _state.asStateFlow()
 
@@ -91,49 +100,85 @@ class ChartsViewModel @Inject constructor(
 
     fun load() {
         viewModelScope.launch {
-            artistRepository.getTopArtists().collect { res ->
-                when (res) {
-                    is Resource.Loading -> {
-                        _state.update { current ->
-                            current.copy(phase = ChartsPhase.Loading)
+            _state.update { current ->
+                current.copy(phase = ChartsPhase.Loading)
+            }
+
+            val username = try {
+                userProfileRepository.getLastFmUsername()
+            } catch (e: Exception) {
+                _state.update { current ->
+                    current.copy(
+                        phase = ChartsPhase.Error(
+                            e.message ?: "No se pudo leer tu usuario de Last.fm."
+                        )
+                    )
+                }
+                return@launch
+            }
+
+            if (username.isNullOrBlank()) {
+                _state.update { current ->
+                    current.copy(
+                        phase = ChartsPhase.Error(
+                            "No hay una cuenta de Last.fm vinculada."
+                        )
+                    )
+                }
+                return@launch
+            }
+
+            artistRepository
+                .getUserTopArtists(
+                    username = username,
+                    period = "1month"
+                )
+                .collect { res ->
+                    when (res) {
+                        is Resource.Loading -> {
+                            _state.update { current ->
+                                current.copy(phase = ChartsPhase.Loading)
+                            }
                         }
-                    }
 
-                    is Resource.Error -> {
-                        _state.update { current ->
-                            current.copy(phase = ChartsPhase.Error(res.message))
-                        }
-                    }
-
-                    is Resource.Success -> {
-                        val artists = res.data
-
-                        _state.update { current ->
-                            current.copy(
-                                phase = ChartsPhase.Success(
-                                    artists = artists,
-                                    songs = emptyList()
-                                )
-                            )
-                        }
-
-                        val songs = loadSongsFromTopArtists(artists)
-
-                        _state.update { current ->
-                            val currentPhase = current.phase
-                            if (currentPhase is ChartsPhase.Success) {
+                        is Resource.Error -> {
+                            _state.update { current ->
                                 current.copy(
-                                    phase = currentPhase.copy(
-                                        songs = songs
+                                    phase = ChartsPhase.Error(res.message)
+                                )
+                            }
+                        }
+
+                        is Resource.Success -> {
+                            val artists = res.data
+
+                            _state.update { current ->
+                                current.copy(
+                                    phase = ChartsPhase.Success(
+                                        artists = artists,
+                                        songs = emptyList()
                                     )
                                 )
-                            } else {
-                                current
+                            }
+
+                            val songs = loadSongsFromTopArtists(artists)
+
+                            _state.update { current ->
+                                val currentPhase = current.phase
+
+                                if (currentPhase is ChartsPhase.Success) {
+                                    current.copy(
+                                        phase = currentPhase.copy(
+                                            songs = songs
+                                        )
+                                    )
+                                } else {
+                                    current
+                                }
                             }
                         }
                     }
                 }
-            }
         }
     }
 
