@@ -47,13 +47,15 @@ import com.recapped.app.ui.theme.Unbounded
 @Composable
 fun ProfileRoute(
     viewModel: ProfileViewModel = hiltViewModel(),
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onEditProfile: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     ProfileScreen(
         state = state,
         onBack = onBack,
+        onEditProfile = onEditProfile,
         onSignOut = viewModel::signOut
     )
 }
@@ -62,6 +64,7 @@ fun ProfileRoute(
 fun ProfileScreen(
     state: ProfileUiState,
     onBack: () -> Unit,
+    onEditProfile: () -> Unit,
     onSignOut: () -> Unit
 ) {
     Box(
@@ -120,7 +123,8 @@ fun ProfileScreen(
             ) {
                 ProfileOptionRow(
                     title = "Cuenta",
-                    subtitle = "Editar perfil"
+                    subtitle = "Editar perfil",
+                    onClick = onEditProfile
                 )
 
                 ProfileOptionRow(
@@ -238,7 +242,8 @@ private fun ProfileIdentity(
                         width = 1.dp,
                         color = Color.White.copy(alpha = 0.14f),
                         shape = CircleShape
-                    ),
+                    )
+                    .clickable(onClick = onEditProfilePlaceholder),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -264,6 +269,8 @@ private fun ProfileIdentity(
         )
     }
 }
+
+private val onEditProfilePlaceholder: () -> Unit = {}
 
 @Composable
 private fun ProfileStatsRow(

@@ -21,6 +21,7 @@ import com.recapped.app.ui.detail.DetailRoute
 import com.recapped.app.ui.home.HomeRoute
 import com.recapped.app.ui.login.LoginRoute
 import com.recapped.app.ui.onboarding.OnboardingRoute
+import com.recapped.app.ui.profile.EditProfileRoute
 import com.recapped.app.ui.profile.ProfileRoute
 import com.recapped.app.ui.recap.RecapGenRoute
 import com.recapped.app.ui.recap.RecapResultRoute
@@ -36,6 +37,7 @@ object Routes {
     const val RECAP_GEN = "recap_gen"
     const val RECAP_RESULT = "recap_result"
     const val PROFILE = "profile"
+    const val EDIT_PROFILE = "edit_profile"
     const val DETAIL = "detail/{artistName}"
 
     fun detail(name: String): String =
@@ -44,7 +46,7 @@ object Routes {
 
 /**
  * Rutas que conviven con el bottom bar.
- * Detail, Login, Onboarding y RecapResult quedan a pantalla completa.
+ * Detail, Login, Onboarding, EditProfile y RecapResult quedan a pantalla completa.
  */
 private val TAB_ROUTES = setOf(
     Routes.HOME,
@@ -152,7 +154,19 @@ fun RecappedNavGraph(authState: AuthUiState) {
             }
 
             composable(Routes.PROFILE) {
-                ProfileRoute()
+                ProfileRoute(
+                    onEditProfile = {
+                        nav.navigate(Routes.EDIT_PROFILE)
+                    }
+                )
+            }
+
+            composable(Routes.EDIT_PROFILE) {
+                EditProfileRoute(
+                    onBack = {
+                        nav.popBackStack()
+                    }
+                )
             }
 
             composable(Routes.DETAIL) { backEntry ->
