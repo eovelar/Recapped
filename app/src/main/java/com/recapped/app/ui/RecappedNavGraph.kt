@@ -242,6 +242,17 @@ fun RecappedNavGraph(
 
                 DetailRoute(
                     artistName = artistName,
+                    spotifyCallbackUrl = spotifyCallbackUrl,
+                    onSpotifyCallbackConsumed =
+                        onSpotifyCallbackConsumed,
+                    onSongClick = { trackName ->
+                        nav.navigate(
+                            Routes.songDetail(
+                                artistName = artistName,
+                                trackName = trackName
+                            )
+                        )
+                    },
                     onBack = {
                         nav.popBackStack()
                     }
@@ -282,7 +293,9 @@ fun RecappedNavGraph(
     }
 }
 
-private fun NavHostController.switchTab(tab: RecappedTab) {
+private fun NavHostController.switchTab(
+    tab: RecappedTab
+) {
     navigate(tab.route) {
         popUpTo(graph.findStartDestination().id) {
             saveState = true

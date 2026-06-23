@@ -19,6 +19,15 @@ interface SpotifyApi {
         @Query("market") market: String = "AR",
         @Query("limit") limit: Int = 1
     ): SpotifySearchResponse
+
+    @GET("search")
+    suspend fun searchArtist(
+        @Header("Authorization") authorization: String,
+        @Query("q") query: String,
+        @Query("type") type: String = "artist",
+        @Query("market") market: String = "AR",
+        @Query("limit") limit: Int = 5
+    ): SpotifySearchResponse
 }
 
 interface SpotifyAccountsApi {

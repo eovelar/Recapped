@@ -24,7 +24,10 @@ data class SpotifyTokenResponse(
 @JsonClass(generateAdapter = true)
 data class SpotifySearchResponse(
     @Json(name = "tracks")
-    val tracks: SpotifyTracksDto?
+    val tracks: SpotifyTracksDto?,
+
+    @Json(name = "artists")
+    val artists: SpotifyArtistsDto?
 )
 
 @JsonClass(generateAdapter = true)
@@ -35,6 +38,27 @@ data class SpotifyTracksDto(
 
 @JsonClass(generateAdapter = true)
 data class SpotifyTrackDto(
+    @Json(name = "id")
+    val id: String,
+
+    @Json(name = "name")
+    val name: String,
+
+    @Json(name = "uri")
+    val uri: String,
+
+    @Json(name = "external_urls")
+    val externalUrls: SpotifyExternalUrlsDto
+)
+
+@JsonClass(generateAdapter = true)
+data class SpotifyArtistsDto(
+    @Json(name = "items")
+    val items: List<SpotifyArtistDto>
+)
+
+@JsonClass(generateAdapter = true)
+data class SpotifyArtistDto(
     @Json(name = "id")
     val id: String,
 

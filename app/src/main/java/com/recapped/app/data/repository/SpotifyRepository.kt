@@ -56,6 +56,21 @@ class SpotifyRepository @Inject constructor(
         )
     }
 
+    suspend fun getArtistUrl(
+        artistName: String
+    ): SpotifyLinkResult {
+        val accessToken = getValidAccessToken()
+            ?: return SpotifyLinkResult.AuthorizationRequired(
+                createAuthorizationUrl()
+            )
+
+        return searchArtist(
+            artistName = artistName,
+            accessToken = accessToken,
+            retryAfterUnauthorized = true
+        )
+    }
+
     suspend fun completeAuthorization(
         callbackUrl: String
     ): Resource<Unit> {
@@ -185,6 +200,76 @@ class SpotifyRepository @Inject constructor(
         }
     }
 
+    private suspend fun searchArtist(
+        artistName: String,
+        accessToken: String,
+        retryAfterUnauthorized: Boolean
+    ): SpotifyLinkResult {
+        return try {
+            val cleanArtistName = artistName.trim()
+
+            val response = spotifyApi.searchArtist(
+                authorization = "Bearer $accessToken",
+                query = "artist:$cleanArtistName"
+            )
+
+            val artists = response.artists
+                ?.items
+                .orEmpty()
+
+            val artist = artists.firstOrNull {
+                it.name.equals(
+                    cleanArtistName,
+                    ignoreCase = true
+                )
+            } ?: artists.firstOrNull()
+
+            val spotifyUrl = artist
+                ?.externalUrls
+                ?.spotify
+
+            if (spotifyUrl.isNullOrBlank()) {
+                SpotifyLinkResult.Error(
+                    "No encontramos este artista en Spotify."
+                )
+            } else {
+                SpotifyLinkResult.Success(spotifyUrl)
+            }
+        } catch (error: HttpException) {
+            if (
+                error.code() == 401 &&
+                retryAfterUnauthorized
+            ) {
+                preferences.edit()
+                    .remove(KEY_ACCESS_TOKEN)
+                    .remove(KEY_ACCESS_TOKEN_EXPIRES_AT)
+                    .apply()
+
+                val refreshedToken = refreshAccessToken()
+
+                if (refreshedToken != null) {
+                    searchArtist(
+                        artistName = artistName,
+                        accessToken = refreshedToken,
+                        retryAfterUnauthorized = false
+                    )
+                } else {
+                    SpotifyLinkResult.AuthorizationRequired(
+                        createAuthorizationUrl()
+                    )
+                }
+            } else {
+                SpotifyLinkResult.Error(
+                    spotifyErrorMessage(error)
+                )
+            }
+        } catch (error: Exception) {
+            SpotifyLinkResult.Error(
+                spotifyErrorMessage(error)
+            )
+        }
+    }
+
     private suspend fun getValidAccessToken(): String? {
         val accessToken = preferences.getString(
             KEY_ACCESS_TOKEN,
@@ -284,7 +369,9 @@ class SpotifyRepository @Inject constructor(
 
         return Base64.encodeToString(
             digest,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+            Base64.URL_SAFE or
+                    Base64.NO_WRAP or
+                    Base64.NO_PADDING
         )
     }
 
@@ -371,8 +458,10 @@ class SpotifyRepository @Inject constructor(
         const val PREFERENCES_NAME = "spotify_preferences"
         const val KEY_ACCESS_TOKEN = "spotify_access_token"
         const val KEY_REFRESH_TOKEN = "spotify_refresh_token"
+
         const val KEY_ACCESS_TOKEN_EXPIRES_AT =
             "spotify_access_token_expires_at"
+
         const val KEY_CODE_VERIFIER = "spotify_code_verifier"
         const val KEY_AUTH_STATE = "spotify_auth_state"
         const val TOKEN_EXPIRATION_MARGIN = 60_000L

@@ -1,11 +1,17 @@
 package com.recapped.app.ui.detail
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,12 +28,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,28 +59,74 @@ import com.recapped.app.ui.components.RecappedChip
 import com.recapped.app.ui.theme.RecappedColors
 import com.recapped.app.ui.theme.Unbounded
 
+private val SpotifyGreen = Color(0xFF1DB954)
+
 @Composable
 fun DetailRoute(
     artistName: String,
+    spotifyCallbackUrl: String?,
+    onSpotifyCallbackConsumed: () -> Unit,
+    onSongClick: (trackName: String) -> Unit,
     onBack: () -> Unit,
     viewModel: DetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(spotifyCallbackUrl) {
+        if (!spotifyCallbackUrl.isNullOrBlank()) {
+            viewModel.onSpotifyAuthorizationCallback(
+                spotifyCallbackUrl
+            )
+            onSpotifyCallbackConsumed()
+        }
+    }
+
+    LaunchedEffect(state.spotifyAction) {
+        when (val action = state.spotifyAction) {
+            is ArtistSpotifyAction.Authorize -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is ArtistSpotifyAction.OpenArtist -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is ArtistSpotifyAction.Error -> {
+                Toast.makeText(
+                    context,
+                    action.message,
+                    Toast.LENGTH_LONG
+                ).show()
+
+                viewModel.consumeSpotifyAction()
+            }
+
+            ArtistSpotifyAction.Idle,
+            ArtistSpotifyAction.Loading -> Unit
+        }
+    }
 
     DetailScreen(
-        title = state.artistName.ifBlank { artistName },
         state = state,
         onBack = onBack,
-        onRetry = { viewModel.load(artistName) }
+        onRetry = {
+            viewModel.load(artistName)
+        },
+        onOpenSpotify = viewModel::openArtistInSpotify,
+        onSongClick = onSongClick
     )
 }
 
 @Composable
-fun DetailScreen(
-    title: String,
+private fun DetailScreen(
     state: DetailUiState,
     onBack: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onOpenSpotify: (artistName: String) -> Unit,
+    onSongClick: (trackName: String) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -79,30 +134,46 @@ fun DetailScreen(
             .background(RecappedColors.Background)
     ) {
         when (val phase = state.phase) {
-            DetailPhase.Loading -> CenterContent {
-                CircularProgressIndicator(color = RecappedColors.BrandOrange)
+            DetailPhase.Loading -> {
+                CenterContent {
+                    CircularProgressIndicator(
+                        color = RecappedColors.BrandOrange
+                    )
+                }
             }
 
-            is DetailPhase.Error -> CenterContent {
-                Text(
-                    text = phase.message,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+            is DetailPhase.Error -> {
+                CenterContent {
+                    Text(
+                        text = phase.message,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = onRetry,
-                    shape = CircleShape
-                ) {
-                    Text(androidx.compose.ui.res.stringResource(R.string.retry))
+                    Button(
+                        onClick = onRetry,
+                        shape = CircleShape
+                    ) {
+                        Text(
+                            androidx.compose.ui.res.stringResource(
+                                R.string.retry
+                            )
+                        )
+                    }
                 }
             }
 
             is DetailPhase.Success -> {
-                Content(detail = phase.detail)
+                Content(
+                    detail = phase.detail,
+                    spotifyLoading =
+                        state.spotifyAction is ArtistSpotifyAction.Loading,
+                    onOpenSpotify = onOpenSpotify,
+                    onSongClick = onSongClick
+                )
             }
         }
 
@@ -138,7 +209,10 @@ fun DetailScreen(
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun Content(
-    detail: ArtistDetail
+    detail: ArtistDetail,
+    spotifyLoading: Boolean,
+    onOpenSpotify: (artistName: String) -> Unit,
+    onSongClick: (trackName: String) -> Unit
 ) {
     val scroll = rememberScrollState()
 
@@ -150,7 +224,7 @@ private fun Content(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(280.dp)
+                .height(360.dp)
         ) {
             GlideImage(
                 model = detail.artist.imageUrl,
@@ -168,8 +242,9 @@ private fun Content(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            listOf(
-                                Color.Black.copy(alpha = 0.25f),
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.20f),
                                 RecappedColors.Background
                             )
                         )
@@ -179,11 +254,16 @@ private fun Content(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
+                    .padding(
+                        horizontal = 20.dp,
+                        vertical = 20.dp
+                    )
             ) {
                 if (detail.tags.isNotEmpty()) {
                     RecappedChip(
-                        text = detail.tags.first().replaceFirstChar { it.uppercase() }
+                        text = detail.tags
+                            .first()
+                            .replaceFirstChar { it.uppercase() }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -195,11 +275,12 @@ private fun Content(
                     fontSize = 30.sp,
                     fontFamily = Unbounded,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = (-1.2).sp
+                    letterSpacing = 0.sp
                 )
 
                 Text(
-                    text = "${detail.artist.playcount} scrobbles · ${detail.artist.listeners} listeners",
+                    text = "${detail.artist.playcount} scrobbles · " +
+                            "${detail.artist.listeners} listeners",
                     color = RecappedColors.Muted,
                     fontSize = 12.sp
                 )
@@ -209,6 +290,15 @@ private fun Content(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            SpotifyButton(
+                loading = spotifyLoading,
+                onClick = {
+                    onOpenSpotify(detail.artist.name)
+                }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             if (!detail.bio.isNullOrBlank()) {
                 SectionLabel("Sobre el artista")
 
@@ -224,19 +314,70 @@ private fun Content(
 
             SectionLabel("Top canciones")
 
-            detail.topTracks.forEachIndexed { idx, track ->
+            detail.topTracks.forEachIndexed { index, track ->
                 TrackRow(
-                    rank = idx + 1,
-                    track = track
+                    rank = index + 1,
+                    track = track,
+                    onClick = {
+                        onSongClick(track.name)
+                    }
                 )
 
-                if (idx < detail.topTracks.lastIndex) {
+                if (index < detail.topTracks.lastIndex) {
                     Spacer(modifier = Modifier.height(6.dp))
                 }
             }
 
             Spacer(modifier = Modifier.height(80.dp))
         }
+    }
+}
+
+@Composable
+private fun SpotifyButton(
+    loading: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(99.dp))
+            .background(SpotifyGreen)
+            .clickable(
+                enabled = !loading,
+                onClick = onClick
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                color = Color.Black,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(20.dp)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = if (loading) {
+                "Buscando en Spotify..."
+            } else {
+                "Escuchar en Spotify"
+            },
+            color = Color.Black,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -259,9 +400,10 @@ private fun SectionLabel(
 @Composable
 private fun TrackRow(
     rank: Int,
-    track: Track
+    track: Track,
+    onClick: () -> Unit
 ) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -271,7 +413,11 @@ private fun TrackRow(
                 color = RecappedColors.Border,
                 shape = RoundedCornerShape(12.dp)
             )
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .clickable(onClick = onClick)
+            .padding(
+                horizontal = 14.dp,
+                vertical = 10.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -285,6 +431,7 @@ private fun TrackRow(
         GlideImage(
             model = track.imageUrl,
             contentDescription = track.name,
+            contentScale = ContentScale.Crop,
             loading = placeholder(R.drawable.ic_splash_logo),
             failure = placeholder(R.drawable.ic_splash_logo),
             modifier = Modifier
@@ -295,23 +442,13 @@ private fun TrackRow(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = track.name,
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-        }
-
         Text(
-            text = track.playcount.toString(),
-            color = RecappedColors.Dim,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
+            text = track.name,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -326,4 +463,24 @@ private fun CenterContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content
     )
+}
+
+private fun openUrl(
+    context: android.content.Context,
+    url: String
+) {
+    try {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse(url)
+            )
+        )
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(
+            context,
+            "No encontramos una aplicación para abrir Spotify.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 }
