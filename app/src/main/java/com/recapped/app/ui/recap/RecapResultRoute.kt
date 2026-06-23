@@ -33,7 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -170,8 +170,8 @@ private fun RecapResultScreen(
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(top = 18.dp, bottom = 28.dp)
+                .padding(horizontal = 20.dp)
+                .padding(top = 18.dp, bottom = 30.dp)
         ) {
             RecapResultHeader(
                 label = formatPeriodLabel(recap),
@@ -183,7 +183,7 @@ private fun RecapResultScreen(
 
             HeroStats(recap)
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             SectionLabel("Top artistas")
             Spacer(modifier = Modifier.height(14.dp))
@@ -194,7 +194,7 @@ private fun RecapResultScreen(
             )
 
             if (recap.topTracks.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(34.dp))
+                Spacer(modifier = Modifier.height(36.dp))
                 SectionLabel("Top canciones")
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -204,20 +204,20 @@ private fun RecapResultScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(34.dp))
+            Spacer(modifier = Modifier.height(36.dp))
             SectionLabel("Tu sonido")
             Spacer(modifier = Modifier.height(14.dp))
 
             GenreBreakdown(recap.genres)
 
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             AiAnalysisCard(
                 headline = recap.aiHeadline,
                 summary = recap.aiSummary
             )
 
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(28.dp))
             SectionLabel("Para vos")
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -296,14 +296,14 @@ private fun RecapResultHeader(
             Icon(
                 imageVector = Icons.Rounded.ArrowBackIosNew,
                 contentDescription = "Volver",
-                tint = Color.White.copy(alpha = 0.55f),
+                tint = Color.White.copy(alpha = 0.62f),
                 modifier = Modifier.size(18.dp)
             )
         }
 
         Text(
             text = label.uppercase(),
-            color = Color.White.copy(alpha = 0.30f),
+            color = Color.White.copy(alpha = 0.34f),
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 2.4.sp,
@@ -317,7 +317,7 @@ private fun RecapResultHeader(
             Icon(
                 imageVector = Icons.Rounded.IosShare,
                 contentDescription = "Compartir",
-                tint = Color.White.copy(alpha = 0.55f),
+                tint = Color.White.copy(alpha = 0.62f),
                 modifier = Modifier.size(19.dp)
             )
         }
@@ -361,7 +361,7 @@ private fun HeroStats(
                 fontFamily = FontFamily(
                     Font(R.font.unbounded_extrabold)
                 ),
-                fontSize = 82.sp,
+                fontSize = 78.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.sp
             ),
@@ -370,7 +370,7 @@ private fun HeroStats(
 
         Text(
             text = "REPRODUCCIONES",
-            color = Color.White.copy(alpha = 0.24f),
+            color = Color.White.copy(alpha = 0.28f),
             fontFamily = FontFamily(
                 Font(R.font.unbounded_extrabold)
             ),
@@ -425,7 +425,7 @@ private fun HeroMetric(
 
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.20f),
+            color = Color.White.copy(alpha = 0.24f),
             fontSize = 8.sp,
             letterSpacing = 1.6.sp,
             fontWeight = FontWeight.SemiBold
@@ -439,7 +439,7 @@ private fun SectionLabel(
 ) {
     Text(
         text = text.uppercase(),
-        color = Color.White.copy(alpha = 0.46f),
+        color = Color.White.copy(alpha = 0.50f),
         fontSize = 10.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 2.1.sp
@@ -478,13 +478,13 @@ private fun TopArtistCard(
 ) {
     Column(
         modifier = Modifier
-            .width(110.dp)
+            .width(116.dp)
             .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
-                .size(width = 110.dp, height = 130.dp)
-                .clip(RoundedCornerShape(13.dp))
+                .size(width = 116.dp, height = 138.dp)
+                .clip(RoundedCornerShape(14.dp))
                 .background(Color(0xFF111111))
         ) {
             GlideImage(
@@ -503,7 +503,7 @@ private fun TopArtistCard(
                         Brush.verticalGradient(
                             listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.65f)
+                                Color.Black.copy(alpha = 0.68f)
                             )
                         )
                     )
@@ -512,7 +512,7 @@ private fun TopArtistCard(
             Box(
                 modifier = Modifier
                     .padding(9.dp)
-                    .size(22.dp)
+                    .size(23.dp)
                     .clip(CircleShape)
                     .background(
                         if (artist.rank == 1) {
@@ -538,12 +538,12 @@ private fun TopArtistCard(
                     .align(Alignment.BottomEnd)
                     .padding(8.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.62f))
+                    .background(Color.Black.copy(alpha = 0.66f))
                     .padding(horizontal = 7.dp, vertical = 3.dp)
             ) {
                 Text(
                     text = artist.playcount.toString(),
-                    color = Color.White.copy(alpha = 0.84f),
+                    color = Color.White.copy(alpha = 0.88f),
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -569,7 +569,7 @@ private fun TopTracksList(
     onSongClick: (artistName: String, trackName: String) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         tracks.forEach { track ->
             TopTrackRow(
@@ -591,13 +591,13 @@ private fun TopTrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF141414))
+            .height(72.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(Color(0xFF151515))
             .border(
-                width = 0.6.dp,
-                color = Color.White.copy(alpha = 0.09f),
-                shape = RoundedCornerShape(14.dp)
+                width = 0.7.dp,
+                color = Color.White.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(15.dp)
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp),
@@ -605,7 +605,7 @@ private fun TopTrackRow(
     ) {
         Text(
             text = track.rank.toString(),
-            color = RecappedColors.Dim,
+            color = Color.White.copy(alpha = 0.34f),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(22.dp)
@@ -618,11 +618,11 @@ private fun TopTrackRow(
             loading = placeholder(R.drawable.ic_splash_logo),
             failure = placeholder(R.drawable.ic_splash_logo),
             modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .size(52.dp)
+                .clip(RoundedCornerShape(11.dp))
         )
 
-        Spacer(modifier = Modifier.width(11.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -634,9 +634,11 @@ private fun TopTrackRow(
                 overflow = TextOverflow.Ellipsis
             )
 
+            Spacer(modifier = Modifier.height(2.dp))
+
             Text(
                 text = track.artistName,
-                color = Color.White.copy(alpha = 0.35f),
+                color = Color.White.copy(alpha = 0.44f),
                 fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -645,7 +647,7 @@ private fun TopTrackRow(
 
         Text(
             text = track.playcount.toString(),
-            color = Color.White.copy(alpha = 0.24f),
+            color = Color.White.copy(alpha = 0.30f),
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -693,12 +695,12 @@ private fun GenreRow(
             color = if (isMain) {
                 Color.White
             } else {
-                Color.White.copy(alpha = 0.42f)
+                Color.White.copy(alpha = 0.48f)
             },
             fontFamily = FontFamily(
                 Font(R.font.unbounded_semibold)
             ),
-            fontSize = if (isMain) 28.sp else 19.sp,
+            fontSize = if (isMain) 27.sp else 19.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
             maxLines = 1,
@@ -708,7 +710,7 @@ private fun GenreRow(
         Text(
             text = "${genre.percentage}%",
             color = Color.White.copy(
-                alpha = if (isMain) 0.30f else 0.20f
+                alpha = if (isMain) 0.34f else 0.24f
             ),
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
@@ -724,37 +726,37 @@ private fun AiAnalysisCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF100D06).copy(alpha = 0.78f))
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF100D06).copy(alpha = 0.82f))
             .border(
-                width = 0.7.dp,
+                width = 0.8.dp,
                 brush = Brush.horizontalGradient(
                     listOf(
                         RecappedColors.BrandOrange,
                         Color(0xFFE4B000)
                     )
                 ),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(20.dp)
             )
-            .padding(18.dp)
+            .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(22.dp)
-                    .clip(RoundedCornerShape(7.dp))
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(BrandGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.SmartToy,
+                    imageVector = Icons.Rounded.AutoAwesome,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(13.dp)
+                    modifier = Modifier.size(14.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(9.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Text(
                 text = "ANÁLISIS DE IA",
@@ -765,7 +767,7 @@ private fun AiAnalysisCard(
             )
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(19.dp))
 
         Text(
             text = headline,
@@ -778,23 +780,23 @@ private fun AiAnalysisCard(
             lineHeight = 29.sp
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(19.dp))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color.White.copy(alpha = 0.10f))
+                .background(Color.White.copy(alpha = 0.12f))
         )
 
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
             text = summary,
-            color = Color.White.copy(alpha = 0.50f),
-            fontSize = 13.sp,
+            color = Color.White.copy(alpha = 0.66f),
+            fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            lineHeight = 23.sp
+            lineHeight = 24.sp
         )
     }
 }
@@ -807,7 +809,7 @@ private fun RecommendationList(
     onOpenSpotify: (String) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         recommendations.forEach { recommendation ->
             RecommendationRow(
@@ -838,14 +840,14 @@ private fun RecommendationRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(15.dp))
-            .background(Color(0xFF141414))
+            .clip(RoundedCornerShape(17.dp))
+            .background(Color(0xFF151515))
             .border(
-                width = 0.7.dp,
-                color = Color.White.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(15.dp)
+                width = 0.8.dp,
+                color = Color.White.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(17.dp)
             )
-            .padding(12.dp)
+            .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlideImage(
@@ -855,12 +857,12 @@ private fun RecommendationRow(
                 loading = placeholder(R.drawable.ic_splash_logo),
                 failure = placeholder(R.drawable.ic_splash_logo),
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = onArtistClick)
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(13.dp))
 
             Column(
                 modifier = Modifier
@@ -870,18 +872,22 @@ private fun RecommendationRow(
                 Text(
                     text = recommendation.name,
                     color = Color.White,
-                    fontSize = 13.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
+                Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
                     text = recommendation.genre.uppercase(),
-                    color = Color.White.copy(alpha = 0.32f),
+                    color = Color.White.copy(alpha = 0.42f),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 1.1.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -893,7 +899,7 @@ private fun RecommendationRow(
                         enabled = !loading,
                         onClick = onOpenSpotify
                     )
-                    .padding(horizontal = 13.dp, vertical = 8.dp),
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 if (loading) {
@@ -927,13 +933,14 @@ private fun RecommendationRow(
         }
 
         if (recommendation.reason.isNotBlank()) {
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = recommendation.reason,
-                color = Color.White.copy(alpha = 0.42f),
-                fontSize = 11.sp,
-                lineHeight = 17.sp
+                color = Color.White.copy(alpha = 0.66f),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 22.sp
             )
         }
     }

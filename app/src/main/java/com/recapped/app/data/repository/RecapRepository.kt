@@ -3,6 +3,7 @@ package com.recapped.app.data.repository
 import com.recapped.app.BuildConfig
 import com.recapped.app.data.remote.DeezerApi
 import com.recapped.app.data.remote.LastFmApi
+import com.recapped.app.data.remote.dto.DeezerTrackDto
 import com.recapped.app.data.remote.dto.ImageDto
 import com.recapped.app.domain.Resource
 import com.recapped.app.domain.model.RecapArtist
@@ -117,30 +118,45 @@ class RecapRepository @Inject constructor(
                     .take(DISPLAYED_ARTISTS)
             )
 
-            val topTracks = tracksResponse
-                .topTracks
-                .track
-                .take(DISPLAYED_TRACKS)
-                .mapIndexed { index, track ->
-                    val artistName = track.artist
-                        ?.name
-                        ?.takeIf { it.isNotBlank() }
-                        ?: "Artista desconocido"
+            val topTracks = coroutineScope {
+                tracksResponse
+                    .topTracks
+                    .track
+                    .take(DISPLAYED_TRACKS)
+                    .mapIndexed { index, track ->
+                        async {
+                            val artistName = track.artist
+                                ?.name
+                                ?.takeIf { it.isNotBlank() }
+                                ?: "Artista desconocido"
 
-                    RecapTrack(
-                        rank = index + 1,
-                        name = track.name,
-                        artistName = artistName,
-                        playcount = track.playcount
-                            ?.toIntOrNull()
-                            ?: 0,
-                        imageUrl = pickImage(track.image)
-                            ?: getDeezerTrackImage(
+                            val lastFmImage = pickImage(track.image)
+
+                            val imageUrl = if (
+                                lastFmImage.isNullOrBlank() ||
+                                isLastFmPlaceholder(lastFmImage)
+                            ) {
+                                getDeezerTrackImage(
+                                    artistName = artistName,
+                                    trackName = track.name
+                                )
+                            } else {
+                                lastFmImage
+                            }
+
+                            RecapTrack(
+                                rank = index + 1,
+                                name = track.name,
                                 artistName = artistName,
-                                trackName = track.name
+                                playcount = track.playcount
+                                    ?.toIntOrNull()
+                                    ?: 0,
+                                imageUrl = imageUrl
                             )
-                    )
-                }
+                        }
+                    }
+                    .awaitAll()
+            }
 
             val genres = calculateGenres(topArtists)
 
@@ -348,29 +364,54 @@ class RecapRepository @Inject constructor(
         artistName: String,
         trackName: String
     ): String? {
-        return try {
-            val response = deezerApi.searchTrack(
-                "$artistName $trackName"
-            )
+        val queries = listOf(
+            """artist:"$artistName" track:"$trackName"""",
+            "$trackName $artistName",
+            "$artistName $trackName"
+        )
 
-            val track = response.data.firstOrNull {
-                it.title.equals(
-                    trackName,
-                    ignoreCase = true
-                ) &&
-                        it.artist?.name.equals(
-                            artistName,
-                            ignoreCase = true
-                        )
-            } ?: response.data.firstOrNull()
+        for (query in queries) {
+            val imageUrl = try {
+                val response = deezerApi.searchTrack(query)
+                val track = pickBestDeezerTrack(
+                    tracks = response.data,
+                    artistName = artistName,
+                    trackName = trackName
+                )
 
-            track?.album?.coverXl
-                ?: track?.album?.coverBig
-                ?: track?.album?.coverMedium
-                ?: track?.album?.cover
-        } catch (_: Exception) {
-            null
+                track?.album?.coverXl
+                    ?: track?.album?.coverBig
+                    ?: track?.album?.coverMedium
+                    ?: track?.album?.cover
+            } catch (_: Exception) {
+                null
+            }
+
+            if (!imageUrl.isNullOrBlank()) {
+                return imageUrl
+            }
         }
+
+        return null
+    }
+
+    private fun pickBestDeezerTrack(
+        tracks: List<DeezerTrackDto>,
+        artistName: String,
+        trackName: String
+    ): DeezerTrackDto? {
+        val normalizedArtist = normalizeMusicText(artistName)
+        val normalizedTrack = normalizeMusicText(trackName)
+
+        return tracks.firstOrNull { track ->
+            normalizeMusicText(track.title.orEmpty()) == normalizedTrack &&
+                    normalizeMusicText(track.artist?.name.orEmpty()) == normalizedArtist
+        } ?: tracks.firstOrNull { track ->
+            normalizeMusicText(track.title.orEmpty()).contains(normalizedTrack) &&
+                    normalizeMusicText(track.artist?.name.orEmpty()).contains(normalizedArtist)
+        } ?: tracks.firstOrNull { track ->
+            normalizeMusicText(track.title.orEmpty()) == normalizedTrack
+        } ?: tracks.firstOrNull()
     }
 
     private fun pickImage(
@@ -395,6 +436,17 @@ class RecapRepository @Inject constructor(
                 it.size == "medium"
             }?.url
             ?: validImages.firstOrNull()?.url
+    }
+
+    private fun normalizeMusicText(
+        value: String
+    ): String {
+        return value
+            .lowercase()
+            .replace("’", "'")
+            .replace("&", "and")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
     }
 
     private fun isLastFmPlaceholder(
