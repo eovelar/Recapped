@@ -48,3 +48,28 @@ data class DeezerAlbumDto(
     @Json(name = "cover_big") val coverBig: String?,
     @Json(name = "cover_xl") val coverXl: String?
 )
+
+@JsonClass(generateAdapter = true)
+data class DeezerAlbumDetailDto(
+    @Json(name = "id") val id: Long?,
+    @Json(name = "title") val title: String?,
+    @Json(name = "release_date") val releaseDate: String?,
+    @Json(name = "nb_tracks") val trackCount: Int?,
+    @Json(name = "cover") val cover: String?,
+    @Json(name = "cover_medium") val coverMedium: String?,
+    @Json(name = "cover_big") val coverBig: String?,
+    @Json(name = "cover_xl") val coverXl: String?,
+    @Json(name = "tracks") val tracks: DeezerAlbumTracksDto?
+)
+
+@JsonClass(generateAdapter = true)
+data class DeezerAlbumTracksDto(
+    @Json(name = "data") val data: List<DeezerAlbumTrackDto>
+)
+
+@JsonClass(generateAdapter = true)
+data class DeezerAlbumTrackDto(
+    @Json(name = "id") val id: Long?,
+    @Json(name = "title") val title: String?,
+    @Json(name = "duration") val duration: Int?
+)

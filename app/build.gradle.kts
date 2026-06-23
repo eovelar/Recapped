@@ -19,10 +19,7 @@ android {
         versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // last.fm key
         buildConfigField("String", "LASTFM_API_KEY", "\"2a89b6df091312d12da52773c9db5486\"")
-
-        // ID de Firebase
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"1051145475349-rh16v76p5pt7ra7h49a1shb5mmale1lb.apps.googleusercontent.com\"")
     }
 
@@ -108,4 +105,9 @@ dependencies {
     implementation(libs.glide)
     implementation(libs.glide.compose)
     ksp("com.github.bumptech.glide:ksp:4.16.0")
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 }

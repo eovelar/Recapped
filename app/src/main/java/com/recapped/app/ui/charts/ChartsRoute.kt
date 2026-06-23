@@ -66,6 +66,7 @@ import com.recapped.app.ui.theme.RecappedColors
 @Composable
 fun ChartsRoute(
     onArtistClick: (String) -> Unit,
+    onSongClick: (artistName: String, trackName: String) -> Unit,
     onBack: () -> Unit = {},
     viewModel: ChartsViewModel = hiltViewModel()
 ) {
@@ -76,6 +77,7 @@ fun ChartsRoute(
         onQueryChange = viewModel::onQueryChange,
         onRetry = viewModel::load,
         onArtistClick = onArtistClick,
+        onSongClick = onSongClick,
         onBack = onBack,
         onContentTypeChange = viewModel::onContentTypeChange,
         onViewModeChange = viewModel::onViewModeChange
@@ -88,6 +90,7 @@ fun ChartsScreen(
     onQueryChange: (String) -> Unit,
     onRetry: () -> Unit,
     onArtistClick: (String) -> Unit,
+    onSongClick: (artistName: String, trackName: String) -> Unit,
     onBack: () -> Unit,
     onContentTypeChange: (ChartsContentType) -> Unit,
     onViewModeChange: (ChartsViewMode) -> Unit
@@ -157,14 +160,14 @@ fun ChartsScreen(
                             SongsGrid(
                                 songs = songs,
                                 onSongClick = { song ->
-                                    onArtistClick(song.artistName)
+                                    onSongClick(song.artistName, song.name)
                                 }
                             )
                         } else {
                             SongsList(
                                 songs = songs,
                                 onSongClick = { song ->
-                                    onArtistClick(song.artistName)
+                                    onSongClick(song.artistName, song.name)
                                 }
                             )
                         }

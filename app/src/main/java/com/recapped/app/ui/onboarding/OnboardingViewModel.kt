@@ -7,11 +7,13 @@ import com.recapped.app.data.repository.AuthRepository
 import com.recapped.app.data.repository.OnboardingRepository
 import com.recapped.app.domain.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 
 data class OnboardingUiState(
@@ -40,7 +42,8 @@ class OnboardingViewModel @Inject constructor(
 
                 _state.update {
                     it.copy(
-                        displayName = user?.displayName?.takeIf { name -> name.isNotBlank() }
+                        displayName = user?.displayName
+                            ?.takeIf { name -> name.isNotBlank() }
                             ?: user?.email?.substringBefore("@")
                             ?: "Usuario"
                     )
@@ -73,7 +76,9 @@ class OnboardingViewModel @Inject constructor(
 
         if (username.isBlank()) {
             _state.update {
-                it.copy(error = "Ingresá tu usuario de Last.fm para vincularlo.")
+                it.copy(
+                    error = "Ingresá tu usuario de Last.fm para vincularlo."
+                )
             }
             return
         }
@@ -86,34 +91,45 @@ class OnboardingViewModel @Inject constructor(
                 )
             }
 
-            val validationResult = artistRepository.validateLastFmUsername(username)
+            try {
+                val validationResult = withTimeout(15_000L) {
+                    artistRepository.validateLastFmUsername(username)
+                }
 
-            if (validationResult is Resource.Error) {
+                if (validationResult is Resource.Error) {
+                    _state.update {
+                        it.copy(
+                            error = validationResult.message.ifBlank {
+                                "No encontramos ese usuario de Last.fm."
+                            }
+                        )
+                    }
+                    return@launch
+                }
+
+                onboardingRepository.saveLastFmUsername(
+                    currentUid,
+                    username
+                )
+                onboardingRepository.completeOnboarding(currentUid)
+
+                onCompleted()
+            } catch (_: TimeoutCancellationException) {
                 _state.update {
                     it.copy(
-                        isSaving = false,
-                        error = validationResult.message.ifBlank {
-                            "No encontramos ese usuario de Last.fm."
-                        }
+                        error = "Last.fm tardó demasiado en responder. Intentá nuevamente."
                     )
                 }
-                return@launch
-            }
-
-            runCatching {
-                onboardingRepository.saveLastFmUsername(currentUid, username)
-                onboardingRepository.completeOnboarding(currentUid)
-            }.onSuccess {
+            } catch (throwable: Exception) {
+                _state.update {
+                    it.copy(
+                        error = throwable.message
+                            ?: "No se pudo guardar la configuración."
+                    )
+                }
+            } finally {
                 _state.update {
                     it.copy(isSaving = false)
-                }
-                onCompleted()
-            }.onFailure { throwable ->
-                _state.update {
-                    it.copy(
-                        isSaving = false,
-                        error = throwable.message ?: "No se pudo guardar la configuración."
-                    )
                 }
             }
         }
@@ -137,19 +153,19 @@ class OnboardingViewModel @Inject constructor(
                 )
             }
 
-            runCatching {
+            try {
                 onboardingRepository.completeOnboarding(currentUid)
-            }.onSuccess {
-                _state.update {
-                    it.copy(isSaving = false)
-                }
                 onCompleted()
-            }.onFailure { throwable ->
+            } catch (throwable: Exception) {
                 _state.update {
                     it.copy(
-                        isSaving = false,
-                        error = throwable.message ?: "No se pudo completar el onboarding."
+                        error = throwable.message
+                            ?: "No se pudo completar el onboarding."
                     )
+                }
+            } finally {
+                _state.update {
+                    it.copy(isSaving = false)
                 }
             }
         }

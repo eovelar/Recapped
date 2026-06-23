@@ -26,6 +26,7 @@ import com.recapped.app.ui.profile.ProfileRoute
 import com.recapped.app.ui.profile.RecapHistoryRoute
 import com.recapped.app.ui.recap.RecapGenRoute
 import com.recapped.app.ui.recap.RecapResultRoute
+import com.recapped.app.ui.songdetail.SongDetailRoute
 import com.recapped.app.ui.theme.RecappedColors
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -41,15 +42,35 @@ object Routes {
     const val EDIT_PROFILE = "edit_profile"
     const val RECAP_HISTORY = "recap_history"
     const val DETAIL = "detail/{artistName}"
+    const val SONG_DETAIL = "song_detail/{artistName}/{trackName}"
 
-    fun detail(name: String): String =
-        "detail/" + URLEncoder.encode(name, Charsets.UTF_8.name())
+    fun detail(name: String): String {
+        val encodedName = URLEncoder.encode(
+            name,
+            Charsets.UTF_8.name()
+        )
+
+        return "detail/$encodedName"
+    }
+
+    fun songDetail(
+        artistName: String,
+        trackName: String
+    ): String {
+        val encodedArtist = URLEncoder.encode(
+            artistName,
+            Charsets.UTF_8.name()
+        )
+
+        val encodedTrack = URLEncoder.encode(
+            trackName,
+            Charsets.UTF_8.name()
+        )
+
+        return "song_detail/$encodedArtist/$encodedTrack"
+    }
 }
 
-/**
- * Rutas que conviven con el bottom bar.
- * Detail, Login, Onboarding, EditProfile, RecapHistory y RecapResult quedan a pantalla completa.
- */
 private val TAB_ROUTES = setOf(
     Routes.HOME,
     Routes.CHARTS,
@@ -65,19 +86,25 @@ fun RecappedNavGraph(authState: AuthUiState) {
         when (authState) {
             is AuthUiState.SignedIn -> {
                 nav.navigate(Routes.HOME) {
-                    popUpTo(0) { inclusive = true }
+                    popUpTo(0) {
+                        inclusive = true
+                    }
                 }
             }
 
             is AuthUiState.NeedsOnboarding -> {
                 nav.navigate(Routes.ONBOARDING) {
-                    popUpTo(0) { inclusive = true }
+                    popUpTo(0) {
+                        inclusive = true
+                    }
                 }
             }
 
             AuthUiState.SignedOut -> {
                 nav.navigate(Routes.LOGIN) {
-                    popUpTo(0) { inclusive = true }
+                    popUpTo(0) {
+                        inclusive = true
+                    }
                 }
             }
 
@@ -98,7 +125,9 @@ fun RecappedNavGraph(authState: AuthUiState) {
             if (showBottomBar) {
                 RecappedBottomBar(
                     current = currentTab,
-                    onSelect = { tab -> nav.switchTab(tab) }
+                    onSelect = { tab ->
+                        nav.switchTab(tab)
+                    }
                 )
             }
         }
@@ -116,7 +145,9 @@ fun RecappedNavGraph(authState: AuthUiState) {
                 OnboardingRoute(
                     onCompleted = {
                         nav.navigate(Routes.HOME) {
-                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                            popUpTo(Routes.ONBOARDING) {
+                                inclusive = true
+                            }
                             launchSingleTop = true
                         }
                     }
@@ -125,14 +156,28 @@ fun RecappedNavGraph(authState: AuthUiState) {
 
             composable(Routes.HOME) {
                 HomeRoute(
-                    onArtistClick = { name -> nav.navigate(Routes.detail(name)) },
-                    onGoToRecap = { nav.switchTab(RecappedTab.Recap) }
+                    onArtistClick = { name ->
+                        nav.navigate(Routes.detail(name))
+                    },
+                    onGoToRecap = {
+                        nav.switchTab(RecappedTab.Recap)
+                    }
                 )
             }
 
             composable(Routes.CHARTS) {
                 ChartsRoute(
-                    onArtistClick = { name -> nav.navigate(Routes.detail(name)) }
+                    onArtistClick = { name ->
+                        nav.navigate(Routes.detail(name))
+                    },
+                    onSongClick = { artistName, trackName ->
+                        nav.navigate(
+                            Routes.songDetail(
+                                artistName = artistName,
+                                trackName = trackName
+                            )
+                        )
+                    }
                 )
             }
 
@@ -183,21 +228,54 @@ fun RecappedNavGraph(authState: AuthUiState) {
             }
 
             composable(Routes.DETAIL) { backEntry ->
-                val raw = backEntry.arguments?.getString("artistName").orEmpty()
-                val name = URLDecoder.decode(raw, Charsets.UTF_8.name())
+                val rawName = backEntry.arguments
+                    ?.getString("artistName")
+                    .orEmpty()
+
+                val artistName = URLDecoder.decode(
+                    rawName,
+                    Charsets.UTF_8.name()
+                )
 
                 DetailRoute(
-                    artistName = name,
-                    onBack = { nav.popBackStack() }
+                    artistName = artistName,
+                    onBack = {
+                        nav.popBackStack()
+                    }
+                )
+            }
+
+            composable(Routes.SONG_DETAIL) { backEntry ->
+                val rawArtist = backEntry.arguments
+                    ?.getString("artistName")
+                    .orEmpty()
+
+                val rawTrack = backEntry.arguments
+                    ?.getString("trackName")
+                    .orEmpty()
+
+                val artistName = URLDecoder.decode(
+                    rawArtist,
+                    Charsets.UTF_8.name()
+                )
+
+                val trackName = URLDecoder.decode(
+                    rawTrack,
+                    Charsets.UTF_8.name()
+                )
+
+                SongDetailRoute(
+                    artistName = artistName,
+                    trackName = trackName,
+                    onBack = {
+                        nav.popBackStack()
+                    }
                 )
             }
         }
     }
 }
 
-/**
- * Navegación entre tabs.
- */
 private fun NavHostController.switchTab(tab: RecappedTab) {
     navigate(tab.route) {
         popUpTo(graph.findStartDestination().id) {
