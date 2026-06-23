@@ -33,11 +33,8 @@ import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,38 +47,23 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.recapped.app.R
+import com.recapped.app.domain.model.RecapPeriod
 import com.recapped.app.ui.theme.BrandGradient
 import com.recapped.app.ui.theme.RecappedColors
 import com.recapped.app.ui.theme.Syne
-import kotlinx.coroutines.delay
-
-private enum class RecapPeriod(
-    val title: String,
-    val subtitle: String
-) {
-    Week("Semana", "últimos 7 días"),
-    Month("Mes", "últimos 30 días"),
-    Quarter("Trimestre", "últimos 3 meses"),
-    Year("Año", "últimos 12 meses")
-}
 
 @Composable
 fun RecapGenRoute(
-    onRecapGenerated: () -> Unit
+    onRecapGenerated: () -> Unit,
+    viewModel: RecapViewModel = hiltViewModel()
 ) {
-    var selectedPeriod by remember { mutableStateOf(RecapPeriod.Month) }
-    var isGenerating by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isGenerating) {
-        if (isGenerating) {
-            delay(2500)
-            onRecapGenerated()
-            isGenerating = false
-        }
-    }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -105,16 +87,19 @@ fun RecapGenRoute(
                     .padding(top = 4.dp, bottom = 20.dp)
             ) {
                 VinylHero(
-                    isRotating = isGenerating
+                    isRotating = state.isGenerating
                 )
 
                 Text(
-                    text = "PERIODO",
+                    text = "PERÍODO",
                     color = RecappedColors.Muted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.6.sp,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(
+                        start = 4.dp,
+                        bottom = 10.dp
+                    )
                 )
 
                 Column(
@@ -124,20 +109,37 @@ fun RecapGenRoute(
                     RecapPeriod.entries.forEach { period ->
                         PeriodOptionCard(
                             period = period,
-                            selected = period == selectedPeriod,
-                            enabled = !isGenerating,
-                            onClick = { selectedPeriod = period }
+                            selected = period == state.selectedPeriod,
+                            enabled = !state.isGenerating,
+                            onClick = {
+                                viewModel.selectPeriod(period)
+                            }
                         )
                     }
+                }
+
+                if (!state.error.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    RecapErrorMessage(
+                        message = state.error.orEmpty(),
+                        onDismiss = viewModel::clearError
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(22.dp))
 
                 GenerateRecapButton(
-                    text = if (isGenerating) "Generando..." else "Generar Recap",
-                    enabled = !isGenerating,
+                    text = if (state.isGenerating) {
+                        "Analizando tu música..."
+                    } else {
+                        "Generar Recap"
+                    },
+                    enabled = !state.isGenerating,
                     onClick = {
-                        isGenerating = true
+                        viewModel.generateRecap(
+                            onSuccess = onRecapGenerated
+                        )
                     }
                 )
             }
@@ -182,7 +184,7 @@ private fun RecapTopBar() {
             fontSize = 21.sp,
             fontFamily = Syne,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.3).sp
+            letterSpacing = 0.sp
         )
     }
 }
@@ -191,7 +193,9 @@ private fun RecapTopBar() {
 private fun VinylHero(
     isRotating: Boolean
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "vinyl_loader_animation")
+    val infiniteTransition = rememberInfiniteTransition(
+        label = "vinyl_loader_animation"
+    )
 
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -243,7 +247,9 @@ private fun VinylHero(
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                RecappedColors.BrandOrange.copy(alpha = glowAlpha),
+                                RecappedColors.BrandOrange.copy(
+                                    alpha = glowAlpha
+                                ),
                                 Color.Transparent
                             ),
                             center = center,
@@ -254,7 +260,9 @@ private fun VinylHero(
         )
 
         Image(
-            painter = painterResource(id = R.drawable.vinilo_separado),
+            painter = painterResource(
+                id = R.drawable.vinilo_separado
+            ),
             contentDescription = "Vinilo Recapped",
             contentScale = ContentScale.Fit,
             modifier = Modifier
@@ -289,7 +297,9 @@ private fun PeriodOptionCard(
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(14.dp)
-    val interaction = remember { MutableInteractionSource() }
+    val interaction = remember {
+        MutableInteractionSource()
+    }
 
     val cardModifier = if (selected) {
         Modifier
@@ -301,8 +311,12 @@ private fun PeriodOptionCard(
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
-                        RecappedColors.BrandOrange.copy(alpha = 0.16f),
-                        RecappedColors.BrandOrange.copy(alpha = 0.04f),
+                        RecappedColors.BrandOrange.copy(
+                            alpha = 0.16f
+                        ),
+                        RecappedColors.BrandOrange.copy(
+                            alpha = 0.04f
+                        ),
                         Color.White.copy(alpha = 0.03f)
                     )
                 ),
@@ -311,8 +325,12 @@ private fun PeriodOptionCard(
             .shadow(
                 elevation = 10.dp,
                 shape = shape,
-                ambientColor = RecappedColors.BrandOrange.copy(alpha = 0.22f),
-                spotColor = RecappedColors.BrandOrange.copy(alpha = 0.22f)
+                ambientColor = RecappedColors.BrandOrange.copy(
+                    alpha = 0.22f
+                ),
+                spotColor = RecappedColors.BrandOrange.copy(
+                    alpha = 0.22f
+                )
             )
     } else {
         Modifier
@@ -343,7 +361,10 @@ private fun PeriodOptionCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(
+                horizontal = 16.dp,
+                vertical = 13.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
@@ -358,7 +379,7 @@ private fun PeriodOptionCard(
                 },
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.3).sp
+                letterSpacing = 0.sp
             )
 
             Spacer(modifier = Modifier.height(1.dp))
@@ -370,8 +391,7 @@ private fun PeriodOptionCard(
                     enabled -> Color.White.copy(alpha = 0.24f)
                     else -> Color.White.copy(alpha = 0.14f)
                 },
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Normal
+                fontSize = 11.sp
             )
         }
 
@@ -380,7 +400,9 @@ private fun PeriodOptionCard(
 }
 
 @Composable
-private fun SelectionDot(selected: Boolean) {
+private fun SelectionDot(
+    selected: Boolean
+) {
     Box(
         modifier = Modifier
             .size(18.dp)
@@ -412,12 +434,62 @@ private fun SelectionDot(selected: Boolean) {
 }
 
 @Composable
+private fun RecapErrorMessage(
+    message: String,
+    onDismiss: () -> Unit
+) {
+    val interaction = remember {
+        MutableInteractionSource()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                RecappedColors.BrandRed.copy(alpha = 0.10f)
+            )
+            .border(
+                width = 0.7.dp,
+                color = RecappedColors.BrandRed.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onDismiss
+            )
+            .padding(14.dp)
+    ) {
+        Text(
+            text = "NO PUDIMOS GENERAR EL RECAP",
+            color = RecappedColors.BrandOrange,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp
+        )
+
+        Spacer(modifier = Modifier.height(5.dp))
+
+        Text(
+            text = message,
+            color = Color.White.copy(alpha = 0.72f),
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Start
+        )
+    }
+}
+
+@Composable
 private fun GenerateRecapButton(
     text: String,
-    enabled: Boolean = true,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val interaction = remember { MutableInteractionSource() }
+    val interaction = remember {
+        MutableInteractionSource()
+    }
 
     Box(
         modifier = Modifier
@@ -426,8 +498,12 @@ private fun GenerateRecapButton(
             .shadow(
                 elevation = if (enabled) 18.dp else 6.dp,
                 shape = CircleShape,
-                ambientColor = RecappedColors.BrandOrange.copy(alpha = 0.28f),
-                spotColor = RecappedColors.BrandOrange.copy(alpha = 0.34f)
+                ambientColor = RecappedColors.BrandOrange.copy(
+                    alpha = 0.28f
+                ),
+                spotColor = RecappedColors.BrandOrange.copy(
+                    alpha = 0.34f
+                )
             )
             .clip(CircleShape)
             .background(
@@ -455,7 +531,7 @@ private fun GenerateRecapButton(
             color = Color.White,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.2).sp
+            letterSpacing = 0.sp
         )
     }
 }
@@ -469,7 +545,9 @@ private fun RecapBackgroundGlow() {
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            RecappedColors.BrandOrange.copy(alpha = 0.16f),
+                            RecappedColors.BrandOrange.copy(
+                                alpha = 0.16f
+                            ),
                             Color.Transparent
                         ),
                         center = Offset(
@@ -483,7 +561,9 @@ private fun RecapBackgroundGlow() {
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            RecappedColors.BrandRed.copy(alpha = 0.08f),
+                            RecappedColors.BrandRed.copy(
+                                alpha = 0.08f
+                            ),
                             Color.Transparent
                         ),
                         center = Offset(

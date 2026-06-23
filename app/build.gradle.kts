@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,6 +8,19 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+val groqApiKey = localProperties.getProperty(
+    "GROQ_API_KEY",
+    ""
+)
 
 android {
     namespace = "com.recapped.app"
@@ -17,7 +32,8 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.2.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner =
+            "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField(
             "String",
@@ -42,13 +58,22 @@ android {
             "SPOTIFY_REDIRECT_URI",
             "\"com.recapped.app://spotify-callback\""
         )
+
+        buildConfigField(
+            "String",
+            "GROQ_API_KEY",
+            "\"$groqApiKey\""
+        )
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                getDefaultProguardFile(
+                    "proguard-android-optimize.txt"
+                ),
                 "proguard-rules.pro"
             )
         }
@@ -106,7 +131,10 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
-    ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.1")
+
+    ksp(
+        "com.squareup.moshi:moshi-kotlin-codegen:1.15.1"
+    )
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

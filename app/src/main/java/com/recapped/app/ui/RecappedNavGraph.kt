@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -26,6 +27,7 @@ import com.recapped.app.ui.profile.ProfileRoute
 import com.recapped.app.ui.profile.RecapHistoryRoute
 import com.recapped.app.ui.recap.RecapGenRoute
 import com.recapped.app.ui.recap.RecapResultRoute
+import com.recapped.app.ui.recap.RecapViewModel
 import com.recapped.app.ui.songdetail.SongDetailRoute
 import com.recapped.app.ui.theme.RecappedColors
 import java.net.URLDecoder
@@ -42,7 +44,8 @@ object Routes {
     const val EDIT_PROFILE = "edit_profile"
     const val RECAP_HISTORY = "recap_history"
     const val DETAIL = "detail/{artistName}"
-    const val SONG_DETAIL = "song_detail/{artistName}/{trackName}"
+    const val SONG_DETAIL =
+        "song_detail/{artistName}/{trackName}"
 
     fun detail(name: String): String {
         val encodedName = URLEncoder.encode(
@@ -85,6 +88,7 @@ fun RecappedNavGraph(
     onSpotifyCallbackConsumed: () -> Unit
 ) {
     val nav = rememberNavController()
+    val recapViewModel: RecapViewModel = hiltViewModel()
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -187,18 +191,39 @@ fun RecappedNavGraph(
 
             composable(Routes.RECAP_GEN) {
                 RecapGenRoute(
+                    viewModel = recapViewModel,
                     onRecapGenerated = {
-                        nav.navigate(Routes.RECAP_RESULT)
+                        nav.navigate(Routes.RECAP_RESULT) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
 
             composable(Routes.RECAP_RESULT) {
                 RecapResultRoute(
+                    spotifyCallbackUrl = spotifyCallbackUrl,
+                    onSpotifyCallbackConsumed =
+                        onSpotifyCallbackConsumed,
+                    viewModel = recapViewModel,
                     onBack = {
                         nav.popBackStack()
                     },
                     onShare = {
+                        // Implementaremos compartir después.
+                    },
+                    onArtistClick = { artistName ->
+                        nav.navigate(
+                            Routes.detail(artistName)
+                        )
+                    },
+                    onSongClick = { artistName, trackName ->
+                        nav.navigate(
+                            Routes.songDetail(
+                                artistName = artistName,
+                                trackName = trackName
+                            )
+                        )
                     }
                 )
             }

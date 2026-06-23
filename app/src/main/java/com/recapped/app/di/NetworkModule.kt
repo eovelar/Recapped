@@ -1,6 +1,7 @@
 package com.recapped.app.di
 
 import com.recapped.app.data.remote.DeezerApi
+import com.recapped.app.data.remote.GroqApi
 import com.recapped.app.data.remote.LastFmApi
 import com.recapped.app.data.remote.SpotifyAccountsApi
 import com.recapped.app.data.remote.SpotifyApi
@@ -38,7 +39,8 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .addInterceptor(logger)
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
@@ -51,7 +53,9 @@ object NetworkModule {
         Retrofit.Builder()
             .baseUrl(LastFmApi.BASE_URL)
             .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .addConverterFactory(
+                MoshiConverterFactory.create(moshi)
+            )
             .build()
 
     @Provides
@@ -67,12 +71,11 @@ object NetworkModule {
         client: OkHttpClient,
         moshi: Moshi
     ): DeezerApi =
-        Retrofit.Builder()
-            .baseUrl("https://api.deezer.com/")
-            .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(DeezerApi::class.java)
+        createRetrofit(
+            baseUrl = "https://api.deezer.com/",
+            client = client,
+            moshi = moshi
+        ).create(DeezerApi::class.java)
 
     @Provides
     @Singleton
@@ -80,12 +83,11 @@ object NetworkModule {
         client: OkHttpClient,
         moshi: Moshi
     ): SpotifyApi =
-        Retrofit.Builder()
-            .baseUrl("https://api.spotify.com/v1/")
-            .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(SpotifyApi::class.java)
+        createRetrofit(
+            baseUrl = "https://api.spotify.com/v1/",
+            client = client,
+            moshi = moshi
+        ).create(SpotifyApi::class.java)
 
     @Provides
     @Singleton
@@ -93,10 +95,34 @@ object NetworkModule {
         client: OkHttpClient,
         moshi: Moshi
     ): SpotifyAccountsApi =
+        createRetrofit(
+            baseUrl = "https://accounts.spotify.com/",
+            client = client,
+            moshi = moshi
+        ).create(SpotifyAccountsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGroqApi(
+        client: OkHttpClient,
+        moshi: Moshi
+    ): GroqApi =
+        createRetrofit(
+            baseUrl = "https://api.groq.com/openai/v1/",
+            client = client,
+            moshi = moshi
+        ).create(GroqApi::class.java)
+
+    private fun createRetrofit(
+        baseUrl: String,
+        client: OkHttpClient,
+        moshi: Moshi
+    ): Retrofit =
         Retrofit.Builder()
-            .baseUrl("https://accounts.spotify.com/")
+            .baseUrl(baseUrl)
             .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .addConverterFactory(
+                MoshiConverterFactory.create(moshi)
+            )
             .build()
-            .create(SpotifyAccountsApi::class.java)
 }

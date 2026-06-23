@@ -1,6 +1,7 @@
 package com.recapped.app.data.remote
 
 import com.recapped.app.data.remote.dto.ArtistInfoResponse
+import com.recapped.app.data.remote.dto.RecentTracksResponse
 import com.recapped.app.data.remote.dto.TopArtistsResponse
 import com.recapped.app.data.remote.dto.TopTracksResponse
 import com.recapped.app.data.remote.dto.UserTopArtistsResponse
@@ -31,7 +32,7 @@ interface LastFmApi {
     suspend fun getUserTopArtists(
         @Query("method") method: String = "user.gettopartists",
         @Query("user") user: String,
-        @Query("period") period: String = "1month",
+        @Query("period") period: String,
         @Query("limit") limit: Int = 50,
         @Query("page") page: Int = 1,
         @Query("api_key") apiKey: String,
@@ -42,7 +43,7 @@ interface LastFmApi {
     suspend fun getUserTopTracks(
         @Query("method") method: String = "user.gettoptracks",
         @Query("user") user: String,
-        @Query("period") period: String = "1month",
+        @Query("period") period: String,
         @Query("limit") limit: Int = 50,
         @Query("page") page: Int = 1,
         @Query("api_key") apiKey: String,
@@ -53,11 +54,14 @@ interface LastFmApi {
     suspend fun getUserRecentTracks(
         @Query("method") method: String = "user.getrecenttracks",
         @Query("user") user: String,
-        @Query("limit") limit: Int = 20,
+        @Query("from") from: Long,
+        @Query("to") to: Long,
+        @Query("limit") limit: Int = 200,
         @Query("page") page: Int = 1,
+        @Query("extended") extended: Int = 0,
         @Query("api_key") apiKey: String,
         @Query("format") format: String = "json"
-    ): TopTracksResponse
+    ): RecentTracksResponse
 
     @GET("2.0/")
     suspend fun getArtistInfo(
@@ -80,6 +84,7 @@ interface LastFmApi {
     ): TopTracksResponse
 
     companion object {
-        const val BASE_URL = "https://ws.audioscrobbler.com/"
+        const val BASE_URL =
+            "https://ws.audioscrobbler.com/"
     }
 }

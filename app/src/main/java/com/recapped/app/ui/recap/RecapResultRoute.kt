@@ -1,5 +1,9 @@
 package com.recapped.app.ui.recap
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,10 +32,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +47,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -47,56 +57,105 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
+import com.bumptech.glide.integration.compose.placeholder
 import com.recapped.app.R
+import com.recapped.app.domain.model.RecapArtist
+import com.recapped.app.domain.model.RecapGenre
+import com.recapped.app.domain.model.RecapRecommendation
+import com.recapped.app.domain.model.RecapResult
+import com.recapped.app.domain.model.RecapTrack
 import com.recapped.app.ui.theme.BrandGradient
 import com.recapped.app.ui.theme.RecappedColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-private data class MockRecapArtist(
-    val position: Int,
-    val name: String,
-    val scrobbles: Int,
-    val initial: String,
-    val accent: Color
-)
+private val SpotifyGreen = Color(0xFF1ED760)
 
-private data class MockGenre(
-    val name: String,
-    val percentage: Int,
-    val accent: Color
-)
-
-private data class MockRecommendation(
-    val name: String,
-    val genre: String,
-    val initial: String,
-    val accent: Color
-)
-
-private val mockArtists = listOf(
-    MockRecapArtist(1, "Tame Impala", 847, "T", Color(0xFF5B20A5)),
-    MockRecapArtist(2, "Khruangbin", 612, "K", Color(0xFF123A7A)),
-    MockRecapArtist(3, "Stereolab", 489, "S", Color(0xFF0A5E47)),
-    MockRecapArtist(4, "Floating Points", 376, "F", Color(0xFF8A4E04))
-)
-
-private val mockGenres = listOf(
-    MockGenre("Psych Rock", 31, Color(0xFFFF2D00)),
-    MockGenre("Krautrock", 22, Color(0xFFFF7A00)),
-    MockGenre("Electronic", 19, Color(0xFFFFD000)),
-    MockGenre("Trip Hop", 14, Color(0xFF7A3DFF)),
-    MockGenre("Art Pop", 9, Color(0xFF2F7DFF))
-)
-
-private val mockRecommendations = listOf(
-    MockRecommendation("King Gizzard & the Lizard Wizard", "Psych Rock", "K", Color(0xFF5B20A5)),
-    MockRecommendation("Neu!", "Krautrock", "N", Color(0xFF0A5E47)),
-    MockRecommendation("Goat", "Psych Folk", "G", Color(0xFF8A4E04))
+private val RecapAccents = listOf(
+    Color(0xFFFF2D00),
+    Color(0xFFFF7A00),
+    Color(0xFFFFD000),
+    Color(0xFF7A3DFF),
+    Color(0xFF2F7DFF)
 )
 
 @Composable
 fun RecapResultRoute(
-    onBack: () -> Unit = {},
-    onShare: () -> Unit = {}
+    spotifyCallbackUrl: String?,
+    onSpotifyCallbackConsumed: () -> Unit,
+    onBack: () -> Unit,
+    onShare: () -> Unit,
+    onArtistClick: (String) -> Unit,
+    onSongClick: (artistName: String, trackName: String) -> Unit,
+    viewModel: RecapViewModel
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(spotifyCallbackUrl) {
+        if (!spotifyCallbackUrl.isNullOrBlank()) {
+            viewModel.onSpotifyAuthorizationCallback(spotifyCallbackUrl)
+            onSpotifyCallbackConsumed()
+        }
+    }
+
+    LaunchedEffect(state.spotifyAction) {
+        when (val action = state.spotifyAction) {
+            is RecapSpotifyAction.Authorize -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is RecapSpotifyAction.OpenArtist -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is RecapSpotifyAction.Error -> {
+                Toast.makeText(
+                    context,
+                    action.message,
+                    Toast.LENGTH_LONG
+                ).show()
+                viewModel.consumeSpotifyAction()
+            }
+
+            RecapSpotifyAction.Idle,
+            RecapSpotifyAction.Loading -> Unit
+        }
+    }
+
+    val recap = state.result
+
+    if (recap == null) {
+        EmptyRecapResult(onBack = onBack)
+        return
+    }
+
+    RecapResultScreen(
+        recap = recap,
+        loadingSpotifyArtist = state.loadingSpotifyArtist,
+        onBack = onBack,
+        onShare = onShare,
+        onArtistClick = onArtistClick,
+        onSongClick = onSongClick,
+        onOpenSpotify = viewModel::openArtistInSpotify
+    )
+}
+
+@Composable
+private fun RecapResultScreen(
+    recap: RecapResult,
+    loadingSpotifyArtist: String?,
+    onBack: () -> Unit,
+    onShare: () -> Unit,
+    onArtistClick: (String) -> Unit,
+    onSongClick: (artistName: String, trackName: String) -> Unit,
+    onOpenSpotify: (String) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -115,42 +174,59 @@ fun RecapResultRoute(
                 .padding(top = 18.dp, bottom = 28.dp)
         ) {
             RecapResultHeader(
-                month = "MARZO 2026",
+                label = formatPeriodLabel(recap),
                 onBack = onBack,
                 onShare = onShare
             )
 
             Spacer(modifier = Modifier.height(30.dp))
 
-            HeroStats()
+            HeroStats(recap)
 
             Spacer(modifier = Modifier.height(30.dp))
 
             SectionLabel("Top artistas")
-
             Spacer(modifier = Modifier.height(14.dp))
 
-            TopArtistsCarousel()
+            TopArtistsCarousel(
+                artists = recap.topArtists,
+                onArtistClick = onArtistClick
+            )
+
+            if (recap.topTracks.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(34.dp))
+                SectionLabel("Top canciones")
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TopTracksList(
+                    tracks = recap.topTracks,
+                    onSongClick = onSongClick
+                )
+            }
 
             Spacer(modifier = Modifier.height(34.dp))
-
             SectionLabel("Tu sonido")
-
             Spacer(modifier = Modifier.height(14.dp))
 
-            GenreBreakdown()
+            GenreBreakdown(recap.genres)
 
             Spacer(modifier = Modifier.height(26.dp))
 
-            AiAnalysisCard()
+            AiAnalysisCard(
+                headline = recap.aiHeadline,
+                summary = recap.aiSummary
+            )
 
             Spacer(modifier = Modifier.height(26.dp))
-
             SectionLabel("Para vos")
-
             Spacer(modifier = Modifier.height(12.dp))
 
-            RecommendationList()
+            RecommendationList(
+                recommendations = recap.recommendations,
+                loadingSpotifyArtist = loadingSpotifyArtist,
+                onArtistClick = onArtistClick,
+                onOpenSpotify = onOpenSpotify
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -158,8 +234,57 @@ fun RecapResultRoute(
 }
 
 @Composable
+private fun EmptyRecapResult(
+    onBack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(RecappedColors.Background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "No hay un recap generado",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Volvé a la pantalla anterior y generá uno.",
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(BrandGradient)
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 22.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = "Volver",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun RecapResultHeader(
-    month: String,
+    label: String,
     onBack: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -167,9 +292,7 @@ private fun RecapResultHeader(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HeaderIconButton(
-            onClick = onBack
-        ) {
+        HeaderIconButton(onClick = onBack) {
             Icon(
                 imageVector = Icons.Rounded.ArrowBackIosNew,
                 contentDescription = "Volver",
@@ -179,18 +302,18 @@ private fun RecapResultHeader(
         }
 
         Text(
-            text = month,
-            color = Color.White.copy(alpha = 0.23f),
-            fontSize = 11.sp,
+            text = label.uppercase(),
+            color = Color.White.copy(alpha = 0.30f),
+            fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = 4.sp,
+            letterSpacing = 2.4.sp,
             modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
-        HeaderIconButton(
-            onClick = onShare
-        ) {
+        HeaderIconButton(onClick = onShare) {
             Icon(
                 imageVector = Icons.Rounded.IosShare,
                 contentDescription = "Compartir",
@@ -224,53 +347,56 @@ private fun HeaderIconButton(
 }
 
 @Composable
-private fun HeroStats() {
+private fun HeroStats(
+    recap: RecapResult
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "346",
+            text = recap.totalScrobbles.toString(),
             style = TextStyle(
                 brush = BrandGradient,
-                fontFamily = FontFamily(Font(R.font.unbounded_extrabold)),
-                fontSize = 92.sp,
+                fontFamily = FontFamily(
+                    Font(R.font.unbounded_extrabold)
+                ),
+                fontSize = 82.sp,
                 fontWeight = FontWeight.ExtraBold,
-                letterSpacing = (-6).sp
+                letterSpacing = 0.sp
             ),
             maxLines = 1
         )
 
-        Spacer(modifier = Modifier.height(2.dp))
-
         Text(
-            text = "CANCIONES ESCUCHADAS",
-            color = Color.White.copy(alpha = 0.20f),
-            fontFamily = FontFamily(Font(R.font.unbounded_extrabold)),
+            text = "REPRODUCCIONES",
+            color = Color.White.copy(alpha = 0.24f),
+            fontFamily = FontFamily(
+                Font(R.font.unbounded_extrabold)
+            ),
             fontSize = 10.sp,
             fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 3.4.sp
+            letterSpacing = 3.sp
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             HeroMetric(
-                value = "43",
+                value = recap.uniqueArtists.toString(),
                 label = "ARTISTAS"
             )
 
             HeroMetric(
-                value = "62h",
-                label = "ESCUCHADAS"
+                value = recap.uniqueTracks.toString(),
+                label = "CANCIONES"
             )
 
             HeroMetric(
-                value = "9",
+                value = recap.genres.size.toString(),
                 label = "GÉNEROS"
             )
         }
@@ -288,10 +414,11 @@ private fun HeroMetric(
         Text(
             text = value,
             color = Color.White,
-            fontFamily = FontFamily(Font(R.font.unbounded_semibold)),
+            fontFamily = FontFamily(
+                Font(R.font.unbounded_semibold)
+            ),
             fontSize = 27.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-1).sp
+            fontWeight = FontWeight.SemiBold
         )
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -299,16 +426,17 @@ private fun HeroMetric(
         Text(
             text = label,
             color = Color.White.copy(alpha = 0.20f),
-            fontFamily = FontFamily(Font(R.font.unbounded_semibold)),
             fontSize = 8.sp,
-            letterSpacing = 2.1.sp,
+            letterSpacing = 1.6.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(
+    text: String
+) {
     Text(
         text = text.uppercase(),
         color = Color.White.copy(alpha = 0.46f),
@@ -319,25 +447,39 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun TopArtistsCarousel() {
+private fun TopArtistsCarousel(
+    artists: List<RecapArtist>,
+    onArtistClick: (String) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        mockArtists.forEach { artist ->
-            TopArtistCard(artist = artist)
+        artists.forEachIndexed { index, artist ->
+            TopArtistCard(
+                artist = artist,
+                accent = RecapAccents[index % RecapAccents.size],
+                onClick = {
+                    onArtistClick(artist.name)
+                }
+            )
         }
     }
 }
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun TopArtistCard(
-    artist: MockRecapArtist
+    artist: RecapArtist,
+    accent: Color,
+    onClick: () -> Unit
 ) {
     Column(
-        modifier = Modifier.width(110.dp)
+        modifier = Modifier
+            .width(110.dp)
+            .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
@@ -345,27 +487,27 @@ private fun TopArtistCard(
                 .clip(RoundedCornerShape(13.dp))
                 .background(Color(0xFF111111))
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            artist.accent.copy(alpha = 0.95f),
-                            artist.accent.copy(alpha = 0.30f),
-                            Color.Black.copy(alpha = 0.96f)
-                        ),
-                        center = Offset(
-                            x = size.width * 0.36f,
-                            y = size.height * 0.20f
-                        ),
-                        radius = size.width * 0.92f
-                    ),
-                    radius = size.width * 0.92f,
-                    center = Offset(
-                        x = size.width * 0.36f,
-                        y = size.height * 0.20f
+            GlideImage(
+                model = artist.imageUrl,
+                contentDescription = artist.name,
+                contentScale = ContentScale.Crop,
+                loading = placeholder(R.drawable.ic_splash_logo),
+                failure = placeholder(R.drawable.ic_splash_logo),
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.65f)
+                            )
+                        )
                     )
-                )
-            }
+            )
 
             Box(
                 modifier = Modifier
@@ -373,47 +515,35 @@ private fun TopArtistCard(
                     .size(22.dp)
                     .clip(CircleShape)
                     .background(
-                        if (artist.position == 1) {
+                        if (artist.rank == 1) {
                             BrandGradient
                         } else {
                             Brush.linearGradient(
-                                listOf(
-                                    Color(0xFF071428),
-                                    Color(0xFF071428)
-                                )
+                                listOf(accent, accent)
                             )
                         }
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = artist.position.toString(),
+                    text = artist.rank.toString(),
                     color = Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Text(
-                text = artist.initial,
-                color = Color.White,
-                fontFamily = FontFamily(Font(R.font.syne_semibold)),
-                fontSize = 23.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Center)
-            )
-
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(8.dp)
-                    .clip(RoundedCornerShape(99.dp))
-                    .background(Color.Black.copy(alpha = 0.56f))
-                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.62f))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = artist.scrobbles.toString(),
-                    color = Color.White.copy(alpha = 0.82f),
+                    text = artist.playcount.toString(),
+                    color = Color.White.copy(alpha = 0.84f),
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -434,14 +564,106 @@ private fun TopArtistCard(
 }
 
 @Composable
-private fun GenreBreakdown() {
+private fun TopTracksList(
+    tracks: List<RecapTrack>,
+    onSongClick: (artistName: String, trackName: String) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        tracks.forEach { track ->
+            TopTrackRow(
+                track = track,
+                onClick = {
+                    onSongClick(track.artistName, track.name)
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun TopTrackRow(
+    track: RecapTrack,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF141414))
+            .border(
+                width = 0.6.dp,
+                color = Color.White.copy(alpha = 0.09f),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = track.rank.toString(),
+            color = RecappedColors.Dim,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(22.dp)
+        )
+
+        GlideImage(
+            model = track.imageUrl,
+            contentDescription = track.name,
+            contentScale = ContentScale.Crop,
+            loading = placeholder(R.drawable.ic_splash_logo),
+            failure = placeholder(R.drawable.ic_splash_logo),
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(9.dp))
+        )
+
+        Spacer(modifier = Modifier.width(11.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.name,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = track.artistName,
+                color = Color.White.copy(alpha = 0.35f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            text = track.playcount.toString(),
+            color = Color.White.copy(alpha = 0.24f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun GenreBreakdown(
+    genres: List<RecapGenre>
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        mockGenres.forEachIndexed { index, genre ->
+        genres.forEachIndexed { index, genre ->
             GenreRow(
                 genre = genre,
+                accent = RecapAccents[index % RecapAccents.size],
                 isMain = index == 0
             )
         }
@@ -450,7 +672,8 @@ private fun GenreBreakdown() {
 
 @Composable
 private fun GenreRow(
-    genre: MockGenre,
+    genre: RecapGenre,
+    accent: Color,
     isMain: Boolean
 ) {
     Row(
@@ -459,7 +682,7 @@ private fun GenreRow(
     ) {
         Text(
             text = "·",
-            color = genre.accent,
+            color = accent,
             fontSize = if (isMain) 26.sp else 19.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(14.dp)
@@ -467,11 +690,16 @@ private fun GenreRow(
 
         Text(
             text = genre.name,
-            color = if (isMain) Color.White else Color.White.copy(alpha = 0.42f),
-            fontFamily = FontFamily(Font(R.font.unbounded_semibold)),
-            fontSize = if (isMain) 31.sp else 21.sp,
+            color = if (isMain) {
+                Color.White
+            } else {
+                Color.White.copy(alpha = 0.42f)
+            },
+            fontFamily = FontFamily(
+                Font(R.font.unbounded_semibold)
+            ),
+            fontSize = if (isMain) 28.sp else 19.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = if (isMain) (-1.2).sp else (-0.8).sp,
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -479,15 +707,20 @@ private fun GenreRow(
 
         Text(
             text = "${genre.percentage}%",
-            color = Color.White.copy(alpha = if (isMain) 0.30f else 0.20f),
-            fontSize = if (isMain) 12.sp else 11.sp,
+            color = Color.White.copy(
+                alpha = if (isMain) 0.30f else 0.20f
+            ),
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
 }
 
 @Composable
-private fun AiAnalysisCard() {
+private fun AiAnalysisCard(
+    headline: String,
+    summary: String
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -496,7 +729,7 @@ private fun AiAnalysisCard() {
             .border(
                 width = 0.7.dp,
                 brush = Brush.horizontalGradient(
-                    colors = listOf(
+                    listOf(
                         RecappedColors.BrandOrange,
                         Color(0xFFE4B000)
                     )
@@ -505,9 +738,7 @@ private fun AiAnalysisCard() {
             )
             .padding(18.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(22.dp)
@@ -537,13 +768,14 @@ private fun AiAnalysisCard() {
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "Un explorador de texturas con raíz en el rock psicodélico de los 70.",
+            text = headline,
             color = Color.White,
-            fontFamily = FontFamily(Font(R.font.syne_semibold)),
+            fontFamily = FontFamily(
+                Font(R.font.syne_semibold)
+            ),
             fontSize = 21.sp,
             fontWeight = FontWeight.SemiBold,
-            lineHeight = 29.sp,
-            letterSpacing = (-0.5).sp
+            lineHeight = 29.sp
         )
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -558,8 +790,8 @@ private fun AiAnalysisCard() {
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "La dominancia de Tame Impala y Khruangbin revela una preferencia por texturas hipnóticas. Tu 22% de Krautrock confirma una fascinación por el ritmo motorik y la repetición como viaje.",
-            color = Color.White.copy(alpha = 0.45f),
+            text = summary,
+            color = Color.White.copy(alpha = 0.50f),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             lineHeight = 23.sp
@@ -568,95 +800,140 @@ private fun AiAnalysisCard() {
 }
 
 @Composable
-private fun RecommendationList() {
+private fun RecommendationList(
+    recommendations: List<RecapRecommendation>,
+    loadingSpotifyArtist: String?,
+    onArtistClick: (String) -> Unit,
+    onOpenSpotify: (String) -> Unit
+) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth()
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        mockRecommendations.forEach { recommendation ->
-            RecommendationRow(recommendation = recommendation)
+        recommendations.forEach { recommendation ->
+            RecommendationRow(
+                recommendation = recommendation,
+                loading = loadingSpotifyArtist.equals(
+                    recommendation.name,
+                    ignoreCase = true
+                ),
+                onArtistClick = {
+                    onArtistClick(recommendation.name)
+                },
+                onOpenSpotify = {
+                    onOpenSpotify(recommendation.name)
+                }
+            )
         }
     }
 }
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun RecommendationRow(
-    recommendation: MockRecommendation
+    recommendation: RecapRecommendation,
+    loading: Boolean,
+    onArtistClick: () -> Unit,
+    onOpenSpotify: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(66.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(Color(0xFF141414).copy(alpha = 0.96f))
+            .background(Color(0xFF141414))
             .border(
                 width = 0.7.dp,
                 color = Color.White.copy(alpha = 0.10f),
                 shape = RoundedCornerShape(15.dp)
             )
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            recommendation.accent.copy(alpha = 0.90f),
-                            Color.Black.copy(alpha = 0.96f)
-                        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlideImage(
+                model = recommendation.imageUrl,
+                contentDescription = recommendation.name,
+                contentScale = ContentScale.Crop,
+                loading = placeholder(R.drawable.ic_splash_logo),
+                failure = placeholder(R.drawable.ic_splash_logo),
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onArtistClick)
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onArtistClick)
+            ) {
+                Text(
+                    text = recommendation.name,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = recommendation.genre.uppercase(),
+                    color = Color.White.copy(alpha = 0.32f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(SpotifyGreen)
+                    .clickable(
+                        enabled = !loading,
+                        onClick = onOpenSpotify
                     )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = recommendation.initial,
-                color = Color.White,
-                fontFamily = FontFamily(Font(R.font.syne_semibold)),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+                    .padding(horizontal = 13.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(
+                        color = Color.Black,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(14.dp)
+                    )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(14.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(3.dp))
+
+                        Text(
+                            text = "Spotify",
+                            color = Color.Black,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = recommendation.name,
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
+        if (recommendation.reason.isNotBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = recommendation.genre.uppercase(),
-                color = Color.White.copy(alpha = 0.32f),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Color(0xFF1ED760))
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Spotify",
-                color = Color.Black,
+                text = recommendation.reason,
+                color = Color.White.copy(alpha = 0.42f),
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                lineHeight = 17.sp
             )
         }
     }
@@ -702,5 +979,37 @@ private fun RecapResultBackground() {
                 y = size.height * 0.28f
             )
         )
+    }
+}
+
+private fun formatPeriodLabel(
+    recap: RecapResult
+): String {
+    val date = SimpleDateFormat(
+        "MMM yyyy",
+        Locale("es", "AR")
+    ).format(Date(recap.generatedAt))
+
+    return "${recap.period.title} · $date"
+        .replaceFirstChar { it.uppercase() }
+}
+
+private fun openUrl(
+    context: android.content.Context,
+    url: String
+) {
+    try {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse(url)
+            )
+        )
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(
+            context,
+            "No encontramos una aplicación para abrir Spotify.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }
