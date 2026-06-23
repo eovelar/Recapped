@@ -24,6 +24,10 @@ interface ArtistRepository {
         trackName: String
     ): Resource<SongDetail>
 
+    suspend fun getTrackIsrc(
+        deezerTrackId: Long
+    ): Resource<String>
+
     suspend fun validateLastFmUsername(
         username: String
     ): Resource<Unit>

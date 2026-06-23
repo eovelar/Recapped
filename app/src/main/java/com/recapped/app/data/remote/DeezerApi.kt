@@ -2,6 +2,7 @@ package com.recapped.app.data.remote
 
 import com.recapped.app.data.remote.dto.DeezerAlbumDetailDto
 import com.recapped.app.data.remote.dto.DeezerArtistSearchResponse
+import com.recapped.app.data.remote.dto.DeezerTrackDto
 import com.recapped.app.data.remote.dto.DeezerTrackSearchResponse
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -18,6 +19,11 @@ interface DeezerApi {
     suspend fun searchTrack(
         @Query("q") query: String
     ): DeezerTrackSearchResponse
+
+    @GET("track/{trackId}")
+    suspend fun getTrack(
+        @Path("trackId") trackId: Long
+    ): DeezerTrackDto
 
     @GET("album/{albumId}")
     suspend fun getAlbum(

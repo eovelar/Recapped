@@ -1,9 +1,9 @@
 package com.recapped.app.ui.songdetail
 
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,6 +65,8 @@ private val SpotifyGreen = Color(0xFF1DB954)
 fun SongDetailRoute(
     artistName: String,
     trackName: String,
+    spotifyCallbackUrl: String?,
+    onSpotifyCallbackConsumed: () -> Unit,
     onBack: () -> Unit,
     viewModel: SongDetailViewModel = hiltViewModel()
 ) {
@@ -78,15 +80,49 @@ fun SongDetailRoute(
         )
     }
 
+    LaunchedEffect(spotifyCallbackUrl) {
+        if (!spotifyCallbackUrl.isNullOrBlank()) {
+            viewModel.onSpotifyAuthorizationCallback(
+                spotifyCallbackUrl
+            )
+            onSpotifyCallbackConsumed()
+        }
+    }
+
+    LaunchedEffect(state.spotifyAction) {
+        when (val action = state.spotifyAction) {
+            is SpotifyAction.Authorize -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is SpotifyAction.OpenTrack -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is SpotifyAction.Error -> {
+                Toast.makeText(
+                    context,
+                    action.message,
+                    Toast.LENGTH_LONG
+                ).show()
+                viewModel.consumeSpotifyAction()
+            }
+
+            SpotifyAction.Idle,
+            SpotifyAction.Loading -> Unit
+        }
+    }
+
     SongDetailScreen(
         state = state,
         onBack = onBack,
         onRetry = viewModel::retry,
-        onOpenSpotify = { artist, song ->
-            openSpotify(
-                context = context,
-                artistName = artist,
-                trackName = song
+        onOpenSpotify = { deezerTrackId, isrc ->
+            viewModel.openInSpotify(
+                deezerTrackId = deezerTrackId,
+                knownIsrc = isrc
             )
         }
     )
@@ -97,7 +133,7 @@ private fun SongDetailScreen(
     state: SongDetailUiState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onOpenSpotify: (artistName: String, trackName: String) -> Unit
+    onOpenSpotify: (deezerTrackId: Long, isrc: String?) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -140,6 +176,8 @@ private fun SongDetailScreen(
             is SongDetailPhase.Success -> {
                 SongContent(
                     detail = phase.detail,
+                    spotifyLoading =
+                        state.spotifyAction is SpotifyAction.Loading,
                     onOpenSpotify = onOpenSpotify
                 )
             }
@@ -178,7 +216,8 @@ private fun SongDetailScreen(
 @Composable
 private fun SongContent(
     detail: SongDetail,
-    onOpenSpotify: (artistName: String, trackName: String) -> Unit
+    spotifyLoading: Boolean,
+    onOpenSpotify: (deezerTrackId: Long, isrc: String?) -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -258,10 +297,11 @@ private fun SongContent(
             Spacer(modifier = Modifier.height(22.dp))
 
             SpotifyButton(
+                loading = spotifyLoading,
                 onClick = {
                     onOpenSpotify(
-                        detail.artistName,
-                        detail.name
+                        detail.deezerTrackId,
+                        detail.isrc
                     )
                 }
             )
@@ -295,8 +335,8 @@ private fun SongContent(
                         selected = selected,
                         onClick = {
                             onOpenSpotify(
-                                detail.artistName,
-                                track.name
+                                track.deezerTrackId,
+                                null
                             )
                         }
                     )
@@ -314,6 +354,7 @@ private fun SongContent(
 
 @Composable
 private fun SpotifyButton(
+    loading: Boolean,
     onClick: () -> Unit
 ) {
     Row(
@@ -322,21 +363,36 @@ private fun SpotifyButton(
             .height(52.dp)
             .clip(RoundedCornerShape(99.dp))
             .background(SpotifyGreen)
-            .clickable(onClick = onClick),
+            .clickable(
+                enabled = !loading,
+                onClick = onClick
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.PlayArrow,
-            contentDescription = null,
-            tint = Color.Black,
-            modifier = Modifier.size(22.dp)
-        )
+        if (loading) {
+            CircularProgressIndicator(
+                color = Color.Black,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(20.dp)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(22.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.width(8.dp))
 
         Text(
-            text = "Escuchar en Spotify",
+            text = if (loading) {
+                "Buscando en Spotify..."
+            } else {
+                "Escuchar en Spotify"
+            },
             color = Color.Black,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
@@ -493,29 +549,22 @@ private fun formatDuration(seconds: Int): String {
     )
 }
 
-private fun openSpotify(
-    context: Context,
-    artistName: String,
-    trackName: String
+private fun openUrl(
+    context: android.content.Context,
+    url: String
 ) {
-    val query = "$artistName $trackName"
-    val encodedQuery = Uri.encode(query)
-
-    val spotifyIntent = Intent(
-        Intent.ACTION_VIEW,
-        Uri.parse("https://open.spotify.com/search/$encodedQuery")
-    ).apply {
-        setPackage("com.spotify.music")
-    }
-
     try {
-        context.startActivity(spotifyIntent)
-    } catch (_: ActivityNotFoundException) {
-        val browserIntent = Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("https://open.spotify.com/search/$encodedQuery")
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse(url)
+            )
         )
-
-        context.startActivity(browserIntent)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(
+            context,
+            "No encontramos una aplicación para abrir Spotify.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }

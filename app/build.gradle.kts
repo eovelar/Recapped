@@ -19,8 +19,29 @@ android {
         versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "LASTFM_API_KEY", "\"2a89b6df091312d12da52773c9db5486\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"1051145475349-rh16v76p5pt7ra7h49a1shb5mmale1lb.apps.googleusercontent.com\"")
+        buildConfigField(
+            "String",
+            "LASTFM_API_KEY",
+            "\"2a89b6df091312d12da52773c9db5486\""
+        )
+
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"1051145475349-rh16v76p5pt7ra7h49a1shb5mmale1lb.apps.googleusercontent.com\""
+        )
+
+        buildConfigField(
+            "String",
+            "SPOTIFY_CLIENT_ID",
+            "\"e2707e1b1f94420c8c95f2491d8f8880\""
+        )
+
+        buildConfigField(
+            "String",
+            "SPOTIFY_REDIRECT_URI",
+            "\"com.recapped.app://spotify-callback\""
+        )
     }
 
     buildTypes {

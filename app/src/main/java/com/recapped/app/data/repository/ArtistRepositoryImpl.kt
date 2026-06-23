@@ -155,7 +155,14 @@ class ArtistRepositoryImpl @Inject constructor(
                 )
             }
 
-            val albumId = deezerTrack.album?.id
+            val deezerTrackId = deezerTrack.id
+                ?: return Resource.Error(
+                    "No encontramos el identificador de esta canción."
+                )
+
+            val trackDetail = deezerApi.getTrack(deezerTrackId)
+            val albumId = trackDetail.album?.id
+                ?: deezerTrack.album?.id
 
             if (albumId == null) {
                 return Resource.Error(
@@ -172,24 +179,36 @@ class ArtistRepositoryImpl @Inject constructor(
                     val name = track.title
                         ?.takeIf { it.isNotBlank() }
                         ?: return@mapNotNull null
+                    val trackId = track.id
+                        ?: return@mapNotNull null
 
                     AlbumTrack(
                         name = name,
-                        durationSeconds = track.duration ?: 0
+                        durationSeconds = track.duration ?: 0,
+                        deezerTrackId = trackId
                     )
                 }
 
             Resource.Success(
                 SongDetail(
-                    name = deezerTrack.title ?: trackName,
-                    artistName = deezerTrack.artist?.name ?: artistName,
+                    name = trackDetail.title
+                        ?: deezerTrack.title
+                        ?: trackName,
+                    artistName = trackDetail.artist?.name
+                        ?: deezerTrack.artist?.name
+                        ?: artistName,
                     albumTitle = albumDetail.title
+                        ?: trackDetail.album?.title
                         ?: deezerTrack.album?.title
                         ?: "Álbum no disponible",
                     imageUrl = albumDetail.coverXl
                         ?: albumDetail.coverBig
                         ?: albumDetail.coverMedium
                         ?: albumDetail.cover
+                        ?: trackDetail.album?.coverXl
+                        ?: trackDetail.album?.coverBig
+                        ?: trackDetail.album?.coverMedium
+                        ?: trackDetail.album?.cover
                         ?: deezerTrack.album?.coverXl
                         ?: deezerTrack.album?.coverBig
                         ?: deezerTrack.album?.coverMedium
@@ -197,9 +216,30 @@ class ArtistRepositoryImpl @Inject constructor(
                     releaseDate = albumDetail.releaseDate,
                     trackCount = albumDetail.trackCount
                         ?: albumTracks.size,
-                    albumTracks = albumTracks
+                    albumTracks = albumTracks,
+                    deezerTrackId = deezerTrackId,
+                    isrc = trackDetail.isrc
+                        ?.takeIf { it.isNotBlank() }
                 )
             )
+        } catch (error: Exception) {
+            mapError(error)
+        }
+    }
+
+    override suspend fun getTrackIsrc(
+        deezerTrackId: Long
+    ): Resource<String> {
+        return try {
+            val isrc = deezerApi.getTrack(deezerTrackId)
+                .isrc
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: return Resource.Error(
+                    "No encontramos el código ISRC de esta canción."
+                )
+
+            Resource.Success(isrc)
         } catch (error: Exception) {
             mapError(error)
         }

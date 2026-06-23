@@ -28,6 +28,9 @@ data class DeezerTrackSearchResponse(
 data class DeezerTrackDto(
     @Json(name = "id") val id: Long?,
     @Json(name = "title") val title: String?,
+    @Json(name = "isrc") val isrc: String?,
+    @Json(name = "link") val link: String?,
+    @Json(name = "duration") val duration: Int?,
     @Json(name = "artist") val artist: DeezerTrackArtistDto?,
     @Json(name = "album") val album: DeezerAlbumDto?
 )

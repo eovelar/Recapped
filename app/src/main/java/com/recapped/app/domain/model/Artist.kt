@@ -29,10 +29,13 @@ data class SongDetail(
     val imageUrl: String?,
     val releaseDate: String?,
     val trackCount: Int,
-    val albumTracks: List<AlbumTrack>
+    val albumTracks: List<AlbumTrack>,
+    val deezerTrackId: Long,
+    val isrc: String?
 )
 
 data class AlbumTrack(
     val name: String,
-    val durationSeconds: Int
+    val durationSeconds: Int,
+    val deezerTrackId: Long
 )

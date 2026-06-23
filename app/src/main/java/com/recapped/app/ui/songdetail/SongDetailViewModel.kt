@@ -3,6 +3,8 @@ package com.recapped.app.ui.songdetail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.recapped.app.data.repository.ArtistRepository
+import com.recapped.app.data.repository.SpotifyLinkResult
+import com.recapped.app.data.repository.SpotifyRepository
 import com.recapped.app.domain.Resource
 import com.recapped.app.domain.model.SongDetail
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,13 +27,32 @@ sealed interface SongDetailPhase {
     ) : SongDetailPhase
 }
 
+sealed interface SpotifyAction {
+    data object Idle : SpotifyAction
+    data object Loading : SpotifyAction
+
+    data class Authorize(
+        val url: String
+    ) : SpotifyAction
+
+    data class OpenTrack(
+        val url: String
+    ) : SpotifyAction
+
+    data class Error(
+        val message: String
+    ) : SpotifyAction
+}
+
 data class SongDetailUiState(
-    val phase: SongDetailPhase = SongDetailPhase.Loading
+    val phase: SongDetailPhase = SongDetailPhase.Loading,
+    val spotifyAction: SpotifyAction = SpotifyAction.Idle
 )
 
 @HiltViewModel
 class SongDetailViewModel @Inject constructor(
-    private val artistRepository: ArtistRepository
+    private val artistRepository: ArtistRepository,
+    private val spotifyRepository: SpotifyRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SongDetailUiState())
@@ -39,6 +60,9 @@ class SongDetailViewModel @Inject constructor(
 
     private var currentArtistName: String = ""
     private var currentTrackName: String = ""
+
+    private var pendingDeezerTrackId: Long? = null
+    private var pendingIsrc: String? = null
 
     fun load(
         artistName: String,
@@ -91,6 +115,86 @@ class SongDetailViewModel @Inject constructor(
         }
     }
 
+    fun openInSpotify(
+        deezerTrackId: Long,
+        knownIsrc: String? = null
+    ) {
+        pendingDeezerTrackId = deezerTrackId
+        pendingIsrc = knownIsrc
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(spotifyAction = SpotifyAction.Loading)
+            }
+
+            val isrc = knownIsrc
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: when (
+                    val result = artistRepository.getTrackIsrc(
+                        deezerTrackId
+                    )
+                ) {
+                    is Resource.Success -> result.data
+
+                    is Resource.Error -> {
+                        showSpotifyError(result.message)
+                        return@launch
+                    }
+
+                    Resource.Loading -> {
+                        showSpotifyError(
+                            "No pudimos obtener la información de la canción."
+                        )
+                        return@launch
+                    }
+                }
+
+            pendingIsrc = isrc
+            requestSpotifyTrack(isrc)
+        }
+    }
+
+    fun onSpotifyAuthorizationCallback(
+        callbackUrl: String
+    ) {
+        viewModelScope.launch {
+            _state.update {
+                it.copy(spotifyAction = SpotifyAction.Loading)
+            }
+
+            when (
+                val result = spotifyRepository.completeAuthorization(
+                    callbackUrl
+                )
+            ) {
+                is Resource.Success -> {
+                    val isrc = pendingIsrc
+
+                    if (isrc.isNullOrBlank()) {
+                        showSpotifyError(
+                            "No encontramos la canción pendiente."
+                        )
+                    } else {
+                        requestSpotifyTrack(isrc)
+                    }
+                }
+
+                is Resource.Error -> {
+                    showSpotifyError(result.message)
+                }
+
+                Resource.Loading -> Unit
+            }
+        }
+    }
+
+    fun consumeSpotifyAction() {
+        _state.update {
+            it.copy(spotifyAction = SpotifyAction.Idle)
+        }
+    }
+
     fun retry() {
         if (
             currentArtistName.isNotBlank() &&
@@ -99,6 +203,48 @@ class SongDetailViewModel @Inject constructor(
             load(
                 artistName = currentArtistName,
                 trackName = currentTrackName
+            )
+        }
+    }
+
+    private suspend fun requestSpotifyTrack(
+        isrc: String
+    ) {
+        when (
+            val result = spotifyRepository.getTrackUrlByIsrc(isrc)
+        ) {
+            is SpotifyLinkResult.Success -> {
+                _state.update {
+                    it.copy(
+                        spotifyAction = SpotifyAction.OpenTrack(
+                            result.spotifyUrl
+                        )
+                    )
+                }
+            }
+
+            is SpotifyLinkResult.AuthorizationRequired -> {
+                _state.update {
+                    it.copy(
+                        spotifyAction = SpotifyAction.Authorize(
+                            result.authorizationUrl
+                        )
+                    )
+                }
+            }
+
+            is SpotifyLinkResult.Error -> {
+                showSpotifyError(result.message)
+            }
+        }
+    }
+
+    private fun showSpotifyError(
+        message: String
+    ) {
+        _state.update {
+            it.copy(
+                spotifyAction = SpotifyAction.Error(message)
             )
         }
     }

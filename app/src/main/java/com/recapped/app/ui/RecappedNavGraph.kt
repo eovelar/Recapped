@@ -79,7 +79,11 @@ private val TAB_ROUTES = setOf(
 )
 
 @Composable
-fun RecappedNavGraph(authState: AuthUiState) {
+fun RecappedNavGraph(
+    authState: AuthUiState,
+    spotifyCallbackUrl: String?,
+    onSpotifyCallbackConsumed: () -> Unit
+) {
     val nav = rememberNavController()
 
     LaunchedEffect(authState) {
@@ -195,7 +199,6 @@ fun RecappedNavGraph(authState: AuthUiState) {
                         nav.popBackStack()
                     },
                     onShare = {
-                        // Próximo paso: implementar compartir recap.
                     }
                 )
             }
@@ -267,6 +270,9 @@ fun RecappedNavGraph(authState: AuthUiState) {
                 SongDetailRoute(
                     artistName = artistName,
                     trackName = trackName,
+                    spotifyCallbackUrl = spotifyCallbackUrl,
+                    onSpotifyCallbackConsumed =
+                        onSpotifyCallbackConsumed,
                     onBack = {
                         nav.popBackStack()
                     }

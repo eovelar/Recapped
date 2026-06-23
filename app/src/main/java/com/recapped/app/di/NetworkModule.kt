@@ -2,6 +2,8 @@ package com.recapped.app.di
 
 import com.recapped.app.data.remote.DeezerApi
 import com.recapped.app.data.remote.LastFmApi
+import com.recapped.app.data.remote.SpotifyAccountsApi
+import com.recapped.app.data.remote.SpotifyApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -21,9 +23,10 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideMoshi(): Moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
-        .build()
+    fun provideMoshi(): Moshi =
+        Moshi.Builder()
+            .add(KotlinJsonAdapterFactory())
+            .build()
 
     @Provides
     @Singleton
@@ -31,6 +34,7 @@ object NetworkModule {
         val logger = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
+
         return OkHttpClient.Builder()
             .addInterceptor(logger)
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -40,7 +44,10 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(client: OkHttpClient, moshi: Moshi): Retrofit =
+    fun provideRetrofit(
+        client: OkHttpClient,
+        moshi: Moshi
+    ): Retrofit =
         Retrofit.Builder()
             .baseUrl(LastFmApi.BASE_URL)
             .client(client)
@@ -49,7 +56,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideLastFmApi(retrofit: Retrofit): LastFmApi =
+    fun provideLastFmApi(
+        retrofit: Retrofit
+    ): LastFmApi =
         retrofit.create(LastFmApi::class.java)
 
     @Provides
@@ -64,4 +73,30 @@ object NetworkModule {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(DeezerApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideSpotifyApi(
+        client: OkHttpClient,
+        moshi: Moshi
+    ): SpotifyApi =
+        Retrofit.Builder()
+            .baseUrl("https://api.spotify.com/v1/")
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(SpotifyApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideSpotifyAccountsApi(
+        client: OkHttpClient,
+        moshi: Moshi
+    ): SpotifyAccountsApi =
+        Retrofit.Builder()
+            .baseUrl("https://accounts.spotify.com/")
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(SpotifyAccountsApi::class.java)
 }

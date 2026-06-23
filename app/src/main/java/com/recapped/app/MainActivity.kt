@@ -1,11 +1,14 @@
 package com.recapped.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -18,13 +21,15 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private var spotifyCallbackUrl by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        // API nativa de Splash Screen (Android 12+; compat hasta API 23 vía AndroidX).
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Mantenemos el splash visible hasta que RootViewModel resuelva si hay sesión.
+        handleSpotifyCallback(intent)
+
         var keepSplash = true
         splash.setKeepOnScreenCondition { keepSplash }
 
@@ -33,13 +38,37 @@ class MainActivity : ComponentActivity() {
                 val rootVm: RootViewModel = hiltViewModel()
                 val authState by rootVm.authState.collectAsStateWithLifecycle()
 
-                // Liberar splash sólo cuando ya conocemos el estado real (no Checking).
                 LaunchedEffect(authState) {
-                    if (authState !is AuthUiState.Checking) keepSplash = false
+                    if (authState !is AuthUiState.Checking) {
+                        keepSplash = false
+                    }
                 }
 
-                RecappedNavGraph(authState = authState)
+                RecappedNavGraph(
+                    authState = authState,
+                    spotifyCallbackUrl = spotifyCallbackUrl,
+                    onSpotifyCallbackConsumed = {
+                        spotifyCallbackUrl = null
+                    }
+                )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSpotifyCallback(intent)
+    }
+
+    private fun handleSpotifyCallback(intent: Intent?) {
+        val data = intent?.data ?: return
+
+        if (
+            data.scheme == "com.recapped.app" &&
+            data.host == "spotify-callback"
+        ) {
+            spotifyCallbackUrl = data.toString()
         }
     }
 }
