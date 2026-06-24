@@ -1,5 +1,10 @@
 package com.recapped.app.ui.home
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,7 +19,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -32,15 +36,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,7 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.recapped.app.R
 import com.recapped.app.domain.model.Artist
+import com.recapped.app.domain.model.ForgottenArtist
 import com.recapped.app.ui.components.ArtistAvatar
 import com.recapped.app.ui.components.GlowSpot
 import com.recapped.app.ui.components.Glows
@@ -57,17 +64,56 @@ import com.recapped.app.ui.theme.RecappedColors
 
 @Composable
 fun HomeRoute(
+    spotifyCallbackUrl: String?,
+    onSpotifyCallbackConsumed: () -> Unit,
     onArtistClick: (String) -> Unit,
     onGoToRecap: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(spotifyCallbackUrl) {
+        if (!spotifyCallbackUrl.isNullOrBlank()) {
+            viewModel.onSpotifyAuthorizationCallback(
+                spotifyCallbackUrl
+            )
+            onSpotifyCallbackConsumed()
+        }
+    }
+
+    LaunchedEffect(state.spotifyAction) {
+        when (val action = state.spotifyAction) {
+            is HomeSpotifyAction.Authorize -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is HomeSpotifyAction.OpenArtist -> {
+                openUrl(context, action.url)
+                viewModel.consumeSpotifyAction()
+            }
+
+            is HomeSpotifyAction.Error -> {
+                Toast.makeText(
+                    context,
+                    action.message,
+                    Toast.LENGTH_LONG
+                ).show()
+                viewModel.consumeSpotifyAction()
+            }
+
+            HomeSpotifyAction.Idle,
+            HomeSpotifyAction.Loading -> Unit
+        }
+    }
 
     HomeScreen(
         state = state,
         onRetry = viewModel::load,
         onArtistClick = onArtistClick,
-        onGoToRecap = onGoToRecap
+        onGoToRecap = onGoToRecap,
+        onOpenSpotify = viewModel::openForgottenArtistInSpotify
     )
 }
 
@@ -76,7 +122,8 @@ fun HomeScreen(
     state: HomeUiState,
     onRetry: () -> Unit,
     onArtistClick: (String) -> Unit,
-    onGoToRecap: () -> Unit
+    onGoToRecap: () -> Unit,
+    onOpenSpotify: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -174,17 +221,33 @@ fun HomeScreen(
                     }
 
                     item {
-                        val forgottenArtist = phase.topArtists.drop(3).firstOrNull()
-                            ?: phase.topArtists.firstOrNull()
+                        val forgottenArtist =
+                            state.forgottenArtist
 
-                        ForgottenArtistCard(
-                            artist = forgottenArtist,
-                            onClick = {
-                                forgottenArtist?.let { artist ->
-                                    onArtistClick(artist.name)
-                                }
+                        when {
+                            state.isLoadingForgottenArtist -> {
+                                ForgottenArtistLoadingCard()
                             }
-                        )
+
+                            forgottenArtist != null -> {
+                                ForgottenArtistCard(
+                                    artist = forgottenArtist,
+                                    spotifyLoading =
+                                        state.spotifyAction is
+                                                HomeSpotifyAction.Loading,
+                                    onClick = {
+                                        onArtistClick(
+                                            forgottenArtist.name
+                                        )
+                                    },
+                                    onOpenSpotify = onOpenSpotify
+                                )
+                            }
+
+                            else -> {
+                                ForgottenArtistEmptyCard()
+                            }
+                        }
                     }
                 }
             }
@@ -621,8 +684,10 @@ private fun ArtistRow(
 
 @Composable
 private fun ForgottenArtistCard(
-    artist: Artist?,
-    onClick: () -> Unit
+    artist: ForgottenArtist,
+    spotifyLoading: Boolean,
+    onClick: () -> Unit,
+    onOpenSpotify: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -634,13 +699,15 @@ private fun ForgottenArtistCard(
                 color = Color.White.copy(alpha = 0.11f),
                 shape = RoundedCornerShape(16.dp)
             )
-            .clickable(enabled = artist != null, onClick = onClick)
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AlbumTile(
-            label = artist?.name?.firstOrNull()?.uppercase() ?: "S",
-            color = Color(0xFF0A5E47)
+        ArtistAvatar(
+            name = artist.name,
+            imageUrl = artist.imageUrl,
+            size = 46.dp,
+            cornerRadius = 9.dp
         )
 
         Spacer(modifier = Modifier.width(13.dp))
@@ -649,7 +716,7 @@ private fun ForgottenArtistCard(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = artist?.name ?: "Radiohead",
+                text = artist.name,
                 color = Color.White,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
@@ -667,7 +734,7 @@ private fun ForgottenArtistCard(
                 )
 
                 Text(
-                    text = "47 días",
+                    text = "${artist.daysSinceLastListen} días",
                     color = RecappedColors.BrandOrange,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
@@ -681,7 +748,10 @@ private fun ForgottenArtistCard(
             }
         }
 
-        SpotifyBadge()
+        SpotifyBadge(
+            loading = spotifyLoading,
+            onClick = onOpenSpotify
+        )
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -697,83 +767,80 @@ private fun ForgottenArtistCard(
 // ── Visuales auxiliares ─────────────────────────────────────────────────────
 
 @Composable
-private fun AlbumTile(
-    label: String,
-    color: Color
+private fun SpotifyBadge(
+    loading: Boolean,
+    onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(46.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        color.copy(alpha = 0.95f),
-                        Color.Black.copy(alpha = 0.95f)
-                    )
-                )
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF1ED760))
+            .clickable(
+                enabled = !loading,
+                onClick = onClick
             ),
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(58.dp)
-                .offset(x = 10.dp, y = (-8).dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.08f))
-        )
+        if (loading) {
+            CircularProgressIndicator(
+                color = Color.Black,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(16.dp)
+            )
+        } else {
+            Icon(
+                painter = painterResource(R.drawable.ic_spotify),
+                contentDescription = "Abrir en Spotify",
+                tint = Color.Black,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
 
-        Text(
-            text = label,
-            color = Color.White,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.ExtraBold
+@Composable
+private fun ForgottenArtistLoadingCard() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF111111).copy(alpha = 0.92f))
+            .border(
+                width = 0.7.dp,
+                color = Color.White.copy(alpha = 0.11f),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            color = RecappedColors.BrandOrange,
+            strokeWidth = 2.dp,
+            modifier = Modifier.size(22.dp)
         )
     }
 }
 
 @Composable
-private fun SpotifyBadge() {
+private fun ForgottenArtistEmptyCard() {
     Box(
         modifier = Modifier
-            .size(28.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF1DB954)),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF111111).copy(alpha = 0.92f))
+            .border(
+                width = 0.7.dp,
+                color = Color.White.copy(alpha = 0.11f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(horizontal = 18.dp, vertical = 20.dp)
     ) {
-        Canvas(modifier = Modifier.size(16.dp)) {
-            val stroke = Stroke(width = 2.1f)
-
-            drawArc(
-                color = Color.Black.copy(alpha = 0.85f),
-                startAngle = 205f,
-                sweepAngle = 130f,
-                useCenter = false,
-                style = stroke,
-                topLeft = Offset(1f, 3f),
-                size = Size(size.width - 2f, size.height * 0.55f)
-            )
-
-            drawArc(
-                color = Color.Black.copy(alpha = 0.85f),
-                startAngle = 208f,
-                sweepAngle = 125f,
-                useCenter = false,
-                style = stroke,
-                topLeft = Offset(2f, 6f),
-                size = Size(size.width - 4f, size.height * 0.45f)
-            )
-
-            drawArc(
-                color = Color.Black.copy(alpha = 0.85f),
-                startAngle = 210f,
-                sweepAngle = 112f,
-                useCenter = false,
-                style = stroke,
-                topLeft = Offset(3.2f, 9f),
-                size = Size(size.width - 6.4f, size.height * 0.34f)
-            )
-        }
+        Text(
+            text = "No encontramos artistas olvidados en tu último año.",
+            color = Color.White.copy(alpha = 0.42f),
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
@@ -832,4 +899,24 @@ private fun compact(n: Long): String = when {
     n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000.0)
     n >= 1_000 -> String.format("%.1fK", n / 1_000.0)
     else -> n.toString()
+}
+
+private fun openUrl(
+    context: Context,
+    url: String
+) {
+    try {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse(url)
+            )
+        )
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(
+            context,
+            "No encontramos una aplicación para abrir Spotify.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 }

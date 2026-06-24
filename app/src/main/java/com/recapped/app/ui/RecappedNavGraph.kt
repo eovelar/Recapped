@@ -164,6 +164,9 @@ fun RecappedNavGraph(
 
             composable(Routes.HOME) {
                 HomeRoute(
+                    spotifyCallbackUrl = spotifyCallbackUrl,
+                    onSpotifyCallbackConsumed =
+                        onSpotifyCallbackConsumed,
                     onArtistClick = { name ->
                         nav.navigate(Routes.detail(name))
                     },
@@ -209,7 +212,9 @@ fun RecappedNavGraph(
                     onBack = {
                         nav.popBackStack()
                     },
-                    onShare = {},
+                    onShare = {
+                        // Implementaremos compartir después.
+                    },
                     onArtistClick = { artistName ->
                         nav.navigate(
                             Routes.detail(artistName)
@@ -249,13 +254,6 @@ fun RecappedNavGraph(
                 RecapHistoryRoute(
                     onBack = {
                         nav.popBackStack()
-                    },
-                    onRecapClick = { recap ->
-                        recapViewModel.openStoredRecap(recap)
-
-                        nav.navigate(Routes.RECAP_RESULT) {
-                            launchSingleTop = true
-                        }
                     }
                 )
             }
