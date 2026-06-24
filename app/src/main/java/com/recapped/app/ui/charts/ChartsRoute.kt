@@ -136,7 +136,9 @@ fun ChartsScreen(
                     ChartsContentType.ARTISTS -> {
                         val artists = state.filteredArtists
 
-                        if (artists.isEmpty()) {
+                        if (state.isSearching) {
+                            LoadingSearchState()
+                        } else if (artists.isEmpty()) {
                             EmptyState()
                         } else if (state.viewMode == ChartsViewMode.GRID) {
                             ArtistsGrid(
@@ -154,7 +156,9 @@ fun ChartsScreen(
                     ChartsContentType.SONGS -> {
                         val songs = state.filteredSongs
 
-                        if (songs.isEmpty()) {
+                        if (state.isSearching) {
+                            LoadingSearchState()
+                        } else if (songs.isEmpty()) {
                             EmptySongsState()
                         } else if (state.viewMode == ChartsViewMode.GRID) {
                             SongsGrid(
@@ -701,11 +705,29 @@ private fun ArtistListRow(
     ChartListRow(
         position = position,
         title = artist.name,
-        subtitle = "${compact(artist.playcount)} scrobbles",
+        subtitle = if (artist.playcount > 0L) {
+            "${compact(artist.playcount)} scrobbles"
+        } else {
+            "Resultado de búsqueda"
+        },
         imageUrl = artist.imageUrl,
         fallbackLabel = artist.name.firstOrNull()?.uppercase() ?: "?",
         onClick = onClick
     )
+}
+
+@Composable
+private fun LoadingSearchState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            color = RecappedColors.BrandOrange,
+            strokeWidth = 2.dp,
+            modifier = Modifier.size(28.dp)
+        )
+    }
 }
 
 // ── Lista canciones ─────────────────────────────────────────────────────────

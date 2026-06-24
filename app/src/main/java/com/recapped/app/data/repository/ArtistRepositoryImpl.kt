@@ -14,15 +14,19 @@ import com.recapped.app.domain.model.AlbumTrack
 import com.recapped.app.domain.model.Artist
 import com.recapped.app.domain.model.ArtistDetail
 import com.recapped.app.domain.model.SongDetail
+import com.recapped.app.domain.model.TopSong
 import com.recapped.app.domain.model.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
@@ -108,6 +112,164 @@ class ArtistRepositoryImpl @Inject constructor(
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    override suspend fun getUserTopSongs(
+        username: String,
+        period: String,
+        limit: Int
+    ): Resource<List<TopSong>> {
+        return try {
+            val cleanUsername = username.trim()
+
+            if (cleanUsername.isBlank()) {
+                return Resource.Error(
+                    "No hay usuario de Last.fm vinculado."
+                )
+            }
+
+            val tracks = api.getUserTopTracks(
+                user = cleanUsername,
+                period = period,
+                limit = limit,
+                apiKey = apiKey
+            ).topTracks.track
+
+            val songs = coroutineScope {
+                val imageRequests = Semaphore(5)
+
+                tracks.take(limit).mapIndexed { index, track ->
+                    async {
+                        val artistName = track.artist
+                            ?.name
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "Artista desconocido"
+
+                        val lastFmImage = pickImage(track.image)
+
+                        val imageUrl = if (
+                            lastFmImage.isNullOrBlank() ||
+                            isLastFmPlaceholder(lastFmImage)
+                        ) {
+                            imageRequests.withPermit {
+                                getDeezerTrackCover(
+                                    artistName = artistName,
+                                    trackName = track.name
+                                )
+                            }
+                        } else {
+                            lastFmImage
+                        }
+
+                        TopSong(
+                            rank = index + 1,
+                            name = track.name,
+                            artistName = artistName,
+                            playcount = track.playcount
+                                ?.toLongOrNull()
+                                ?: 0L,
+                            imageUrl = imageUrl
+                        )
+                    }
+                }.awaitAll()
+            }
+
+            Resource.Success(songs)
+        } catch (error: Exception) {
+            mapError(error)
+        }
+    }
+
+    override suspend fun searchArtists(
+        query: String,
+        limit: Int
+    ): Resource<List<Artist>> {
+        return try {
+            val cleanQuery = query.trim()
+
+            if (cleanQuery.length < 2) {
+                return Resource.Success(emptyList())
+            }
+
+            val artists = deezerApi
+                .searchArtist(cleanQuery)
+                .data
+                .mapNotNull { artist ->
+                    val name = artist.name
+                        ?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+
+                    Artist(
+                        mbid = artist.id?.toString().orEmpty(),
+                        name = name,
+                        playcount = 0L,
+                        listeners = 0L,
+                        imageUrl = artist.pictureXl
+                            ?: artist.pictureBig
+                            ?: artist.pictureMedium
+                            ?: artist.picture,
+                        rank = 0
+                    )
+                }
+                .distinctBy { it.name.lowercase() }
+                .take(limit)
+                .mapIndexed { index, artist ->
+                    artist.copy(rank = index + 1)
+                }
+
+            Resource.Success(artists)
+        } catch (error: Exception) {
+            mapError(error)
+        }
+    }
+
+    override suspend fun searchSongs(
+        query: String,
+        limit: Int
+    ): Resource<List<TopSong>> {
+        return try {
+            val cleanQuery = query.trim()
+
+            if (cleanQuery.length < 2) {
+                return Resource.Success(emptyList())
+            }
+
+            val songs = deezerApi
+                .searchTrack(cleanQuery)
+                .data
+                .mapNotNull { track ->
+                    val name = track.title
+                        ?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+
+                    val artistName = track.artist
+                        ?.name
+                        ?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+
+                    TopSong(
+                        rank = 0,
+                        name = name,
+                        artistName = artistName,
+                        playcount = 0L,
+                        imageUrl = track.album?.coverXl
+                            ?: track.album?.coverBig
+                            ?: track.album?.coverMedium
+                            ?: track.album?.cover
+                    )
+                }
+                .distinctBy {
+                    "${it.artistName.lowercase()}-${it.name.lowercase()}"
+                }
+                .take(limit)
+                .mapIndexed { index, song ->
+                    song.copy(rank = index + 1)
+                }
+
+            Resource.Success(songs)
+        } catch (error: Exception) {
+            mapError(error)
+        }
+    }
 
     override suspend fun validateLastFmUsername(
         username: String

@@ -254,6 +254,13 @@ fun RecappedNavGraph(
                 RecapHistoryRoute(
                     onBack = {
                         nav.popBackStack()
+                    },
+                    onRecapClick = { recap ->
+                        recapViewModel.openStoredRecap(recap)
+
+                        nav.navigate(Routes.RECAP_RESULT) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
