@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,16 +32,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +61,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
@@ -69,6 +76,9 @@ import com.recapped.app.domain.model.RecapResult
 import com.recapped.app.domain.model.RecapTrack
 import com.recapped.app.ui.theme.BrandGradient
 import com.recapped.app.ui.theme.RecappedColors
+import com.recapped.app.util.RecapShareImageGenerator
+import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,15 +100,29 @@ fun RecapResultRoute(
     onBack: () -> Unit,
     onShare: () -> Unit,
     onArtistClick: (String) -> Unit,
-    onSongClick: (artistName: String, trackName: String) -> Unit,
+    onSongClick: (
+        artistName: String,
+        trackName: String
+    ) -> Unit,
     viewModel: RecapViewModel
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    var isSharing by remember {
+        mutableStateOf(false)
+    }
+
+    var previewFile by remember {
+        mutableStateOf<File?>(null)
+    }
 
     LaunchedEffect(spotifyCallbackUrl) {
         if (!spotifyCallbackUrl.isNullOrBlank()) {
-            viewModel.onSpotifyAuthorizationCallback(spotifyCallbackUrl)
+            viewModel.onSpotifyAuthorizationCallback(
+                spotifyCallbackUrl
+            )
             onSpotifyCallbackConsumed()
         }
     }
@@ -121,6 +145,7 @@ fun RecapResultRoute(
                     action.message,
                     Toast.LENGTH_LONG
                 ).show()
+
                 viewModel.consumeSpotifyAction()
             }
 
@@ -136,25 +161,199 @@ fun RecapResultRoute(
         return
     }
 
+    val generateSharePreview = {
+        if (!isSharing) {
+            isSharing = true
+
+            coroutineScope.launch {
+                try {
+                    previewFile =
+                        RecapShareImageGenerator.generate(
+                            context = context.applicationContext,
+                            recap = recap
+                        )
+                } catch (_: Exception) {
+                    Toast.makeText(
+                        context,
+                        "No pudimos generar la imagen del recap.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isSharing = false
+                }
+            }
+        }
+    }
+
     RecapResultScreen(
         recap = recap,
-        loadingSpotifyArtist = state.loadingSpotifyArtist,
+        loadingSpotifyArtist =
+            state.loadingSpotifyArtist,
+        isSharing = isSharing,
         onBack = onBack,
-        onShare = onShare,
+        onShare = generateSharePreview,
         onArtistClick = onArtistClick,
         onSongClick = onSongClick,
-        onOpenSpotify = viewModel::openArtistInSpotify
+        onOpenSpotify =
+            viewModel::openArtistInSpotify
     )
+
+    previewFile?.let { imageFile ->
+        RecapSharePreviewDialog(
+            imageFile = imageFile,
+            onDismiss = {
+                previewFile = null
+            },
+            onShare = {
+                try {
+                    shareRecapImage(
+                        context = context,
+                        imageFile = imageFile
+                    )
+
+                    onShare()
+                    previewFile = null
+                } catch (_: Exception) {
+                    Toast.makeText(
+                        context,
+                        "No pudimos compartir la imagen del recap.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun RecapSharePreviewDialog(
+    imageFile: File,
+    onDismiss: () -> Unit,
+    onShare: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.90f)
+                .fillMaxHeight(0.90f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF101010))
+                .border(
+                    width = 1.dp,
+                    color = RecappedColors.BrandOrange,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(
+                            RecappedColors.BrandOrange
+                        )
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Text(
+                    text = "VISTA PREVIA",
+                    color = RecappedColors.BrandOrange,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.8.sp,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text(
+                    text = "Cerrar",
+                    color = Color.White.copy(
+                        alpha = 0.60f
+                    ),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable(
+                        onClick = onDismiss
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            GlideImage(
+                model = imageFile,
+                contentDescription =
+                    "Vista previa del recap",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .background(BrandGradient)
+                    .clickable(onClick = onShare)
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector =
+                            Icons.Rounded.IosShare,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+
+                    Spacer(
+                        modifier = Modifier.width(8.dp)
+                    )
+
+                    Text(
+                        text = "Compartir recap",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun RecapResultScreen(
     recap: RecapResult,
     loadingSpotifyArtist: String?,
+    isSharing: Boolean,
     onBack: () -> Unit,
     onShare: () -> Unit,
     onArtistClick: (String) -> Unit,
-    onSongClick: (artistName: String, trackName: String) -> Unit,
+    onSongClick: (
+        artistName: String,
+        trackName: String
+    ) -> Unit,
     onOpenSpotify: (String) -> Unit
 ) {
     Box(
@@ -167,14 +366,24 @@ private fun RecapResultScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(
+                    WindowInsets.statusBars
+                )
+                .windowInsetsPadding(
+                    WindowInsets.navigationBars
+                )
+                .verticalScroll(
+                    rememberScrollState()
+                )
                 .padding(horizontal = 20.dp)
-                .padding(top = 18.dp, bottom = 30.dp)
+                .padding(
+                    top = 18.dp,
+                    bottom = 30.dp
+                )
         ) {
             RecapResultHeader(
                 label = formatPeriodLabel(recap),
+                isSharing = isSharing,
                 onBack = onBack,
                 onShare = onShare
             )
@@ -186,6 +395,7 @@ private fun RecapResultScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             SectionLabel("Top artistas")
+
             Spacer(modifier = Modifier.height(14.dp))
 
             TopArtistsCarousel(
@@ -194,9 +404,15 @@ private fun RecapResultScreen(
             )
 
             if (recap.topTracks.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(36.dp))
+                Spacer(
+                    modifier = Modifier.height(36.dp)
+                )
+
                 SectionLabel("Top canciones")
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
 
                 TopTracksList(
                     tracks = recap.topTracks,
@@ -205,7 +421,9 @@ private fun RecapResultScreen(
             }
 
             Spacer(modifier = Modifier.height(36.dp))
+
             SectionLabel("Tu sonido")
+
             Spacer(modifier = Modifier.height(14.dp))
 
             GenreBreakdown(recap.genres)
@@ -218,12 +436,16 @@ private fun RecapResultScreen(
             )
 
             Spacer(modifier = Modifier.height(28.dp))
+
             SectionLabel("Para vos")
+
             Spacer(modifier = Modifier.height(12.dp))
 
             RecommendationList(
-                recommendations = recap.recommendations,
-                loadingSpotifyArtist = loadingSpotifyArtist,
+                recommendations =
+                    recap.recommendations,
+                loadingSpotifyArtist =
+                    loadingSpotifyArtist,
                 onArtistClick = onArtistClick,
                 onOpenSpotify = onOpenSpotify
             )
@@ -245,7 +467,8 @@ private fun EmptyRecapResult(
     ) {
         Column(
             modifier = Modifier.padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment =
+                Alignment.CenterHorizontally
         ) {
             Text(
                 text = "No hay un recap generado",
@@ -257,8 +480,11 @@ private fun EmptyRecapResult(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "Volvé a la pantalla anterior y generá uno.",
-                color = Color.White.copy(alpha = 0.55f),
+                text =
+                    "Volvé a la pantalla anterior y generá uno.",
+                color = Color.White.copy(
+                    alpha = 0.55f
+                ),
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )
@@ -270,7 +496,10 @@ private fun EmptyRecapResult(
                     .clip(CircleShape)
                     .background(BrandGradient)
                     .clickable(onClick = onBack)
-                    .padding(horizontal = 22.dp, vertical = 12.dp)
+                    .padding(
+                        horizontal = 22.dp,
+                        vertical = 12.dp
+                    )
             ) {
                 Text(
                     text = "Volver",
@@ -285,6 +514,7 @@ private fun EmptyRecapResult(
 @Composable
 private fun RecapResultHeader(
     label: String,
+    isSharing: Boolean,
     onBack: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -294,16 +524,21 @@ private fun RecapResultHeader(
     ) {
         HeaderIconButton(onClick = onBack) {
             Icon(
-                imageVector = Icons.Rounded.ArrowBackIosNew,
+                imageVector =
+                    Icons.Rounded.ArrowBackIosNew,
                 contentDescription = "Volver",
-                tint = Color.White.copy(alpha = 0.62f),
+                tint = Color.White.copy(
+                    alpha = 0.62f
+                ),
                 modifier = Modifier.size(18.dp)
             )
         }
 
         Text(
             text = label.uppercase(),
-            color = Color.White.copy(alpha = 0.34f),
+            color = Color.White.copy(
+                alpha = 0.34f
+            ),
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 2.4.sp,
@@ -313,29 +548,49 @@ private fun RecapResultHeader(
             overflow = TextOverflow.Ellipsis
         )
 
-        HeaderIconButton(onClick = onShare) {
-            Icon(
-                imageVector = Icons.Rounded.IosShare,
-                contentDescription = "Compartir",
-                tint = Color.White.copy(alpha = 0.62f),
-                modifier = Modifier.size(19.dp)
-            )
+        HeaderIconButton(
+            enabled = !isSharing,
+            onClick = onShare
+        ) {
+            if (isSharing) {
+                CircularProgressIndicator(
+                    color = Color.White.copy(
+                        alpha = 0.72f
+                    ),
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(17.dp)
+                )
+            } else {
+                Icon(
+                    imageVector =
+                        Icons.Rounded.IosShare,
+                    contentDescription = "Compartir",
+                    tint = Color.White.copy(
+                        alpha = 0.62f
+                    ),
+                    modifier = Modifier.size(19.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun HeaderIconButton(
+    enabled: Boolean = true,
     onClick: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    val interaction = remember { MutableInteractionSource() }
+    val interaction = remember {
+        MutableInteractionSource()
+    }
 
     Box(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
             .clickable(
+                enabled = enabled,
                 interactionSource = interaction,
                 indication = null,
                 onClick = onClick
@@ -352,7 +607,8 @@ private fun HeroStats(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment =
+            Alignment.CenterHorizontally
     ) {
         Text(
             text = recap.totalScrobbles.toString(),
@@ -370,7 +626,9 @@ private fun HeroStats(
 
         Text(
             text = "REPRODUCCIONES",
-            color = Color.White.copy(alpha = 0.28f),
+            color = Color.White.copy(
+                alpha = 0.28f
+            ),
             fontFamily = FontFamily(
                 Font(R.font.unbounded_extrabold)
             ),
@@ -383,15 +641,18 @@ private fun HeroStats(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement =
+                Arrangement.SpaceEvenly
         ) {
             HeroMetric(
-                value = recap.uniqueArtists.toString(),
+                value =
+                    recap.uniqueArtists.toString(),
                 label = "ARTISTAS"
             )
 
             HeroMetric(
-                value = recap.uniqueTracks.toString(),
+                value =
+                    recap.uniqueTracks.toString(),
                 label = "CANCIONES"
             )
 
@@ -409,7 +670,8 @@ private fun HeroMetric(
     label: String
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment =
+            Alignment.CenterHorizontally
     ) {
         Text(
             text = value,
@@ -425,7 +687,9 @@ private fun HeroMetric(
 
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.24f),
+            color = Color.White.copy(
+                alpha = 0.24f
+            ),
             fontSize = 8.sp,
             letterSpacing = 1.6.sp,
             fontWeight = FontWeight.SemiBold
@@ -439,7 +703,9 @@ private fun SectionLabel(
 ) {
     Text(
         text = text.uppercase(),
-        color = Color.White.copy(alpha = 0.50f),
+        color = Color.White.copy(
+            alpha = 0.50f
+        ),
         fontSize = 10.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 2.1.sp
@@ -454,13 +720,18 @@ private fun TopArtistsCarousel(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+            .horizontalScroll(
+                rememberScrollState()
+            ),
+        horizontalArrangement =
+            Arrangement.spacedBy(14.dp)
     ) {
         artists.forEachIndexed { index, artist ->
             TopArtistCard(
                 artist = artist,
-                accent = RecapAccents[index % RecapAccents.size],
+                accent = RecapAccents[
+                    index % RecapAccents.size
+                ],
                 onClick = {
                     onArtistClick(artist.name)
                 }
@@ -483,16 +754,25 @@ private fun TopArtistCard(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 116.dp, height = 138.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .size(
+                    width = 116.dp,
+                    height = 138.dp
+                )
+                .clip(
+                    RoundedCornerShape(14.dp)
+                )
                 .background(Color(0xFF111111))
         ) {
             GlideImage(
                 model = artist.imageUrl,
                 contentDescription = artist.name,
                 contentScale = ContentScale.Crop,
-                loading = placeholder(R.drawable.ic_splash_logo),
-                failure = placeholder(R.drawable.ic_splash_logo),
+                loading = placeholder(
+                    R.drawable.ic_splash_logo
+                ),
+                failure = placeholder(
+                    R.drawable.ic_splash_logo
+                ),
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -503,7 +783,9 @@ private fun TopArtistCard(
                         Brush.verticalGradient(
                             listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.68f)
+                                Color.Black.copy(
+                                    alpha = 0.68f
+                                )
                             )
                         )
                     )
@@ -519,7 +801,10 @@ private fun TopArtistCard(
                             BrandGradient
                         } else {
                             Brush.linearGradient(
-                                listOf(accent, accent)
+                                listOf(
+                                    accent,
+                                    accent
+                                )
                             )
                         }
                     ),
@@ -538,12 +823,22 @@ private fun TopArtistCard(
                     .align(Alignment.BottomEnd)
                     .padding(8.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.66f))
-                    .padding(horizontal = 7.dp, vertical = 3.dp)
+                    .background(
+                        Color.Black.copy(
+                            alpha = 0.66f
+                        )
+                    )
+                    .padding(
+                        horizontal = 7.dp,
+                        vertical = 3.dp
+                    )
             ) {
                 Text(
-                    text = artist.playcount.toString(),
-                    color = Color.White.copy(alpha = 0.88f),
+                    text =
+                        artist.playcount.toString(),
+                    color = Color.White.copy(
+                        alpha = 0.88f
+                    ),
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -566,16 +861,23 @@ private fun TopArtistCard(
 @Composable
 private fun TopTracksList(
     tracks: List<RecapTrack>,
-    onSongClick: (artistName: String, trackName: String) -> Unit
+    onSongClick: (
+        artistName: String,
+        trackName: String
+    ) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        verticalArrangement =
+            Arrangement.spacedBy(9.dp)
     ) {
         tracks.forEach { track ->
             TopTrackRow(
                 track = track,
                 onClick = {
-                    onSongClick(track.artistName, track.name)
+                    onSongClick(
+                        track.artistName,
+                        track.name
+                    )
                 }
             )
         }
@@ -596,7 +898,9 @@ private fun TopTrackRow(
             .background(Color(0xFF151515))
             .border(
                 width = 0.7.dp,
-                color = Color.White.copy(alpha = 0.12f),
+                color = Color.White.copy(
+                    alpha = 0.12f
+                ),
                 shape = RoundedCornerShape(15.dp)
             )
             .clickable(onClick = onClick)
@@ -605,7 +909,9 @@ private fun TopTrackRow(
     ) {
         Text(
             text = track.rank.toString(),
-            color = Color.White.copy(alpha = 0.34f),
+            color = Color.White.copy(
+                alpha = 0.34f
+            ),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(22.dp)
@@ -615,11 +921,17 @@ private fun TopTrackRow(
             model = track.imageUrl,
             contentDescription = track.name,
             contentScale = ContentScale.Crop,
-            loading = placeholder(R.drawable.ic_splash_logo),
-            failure = placeholder(R.drawable.ic_splash_logo),
+            loading = placeholder(
+                R.drawable.ic_splash_logo
+            ),
+            failure = placeholder(
+                R.drawable.ic_splash_logo
+            ),
             modifier = Modifier
                 .size(52.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(
+                    RoundedCornerShape(11.dp)
+                )
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -638,7 +950,9 @@ private fun TopTrackRow(
 
             Text(
                 text = track.artistName,
-                color = Color.White.copy(alpha = 0.44f),
+                color = Color.White.copy(
+                    alpha = 0.44f
+                ),
                 fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -647,7 +961,9 @@ private fun TopTrackRow(
 
         Text(
             text = track.playcount.toString(),
-            color = Color.White.copy(alpha = 0.30f),
+            color = Color.White.copy(
+                alpha = 0.30f
+            ),
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -660,12 +976,15 @@ private fun GenreBreakdown(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        verticalArrangement =
+            Arrangement.spacedBy(5.dp)
     ) {
         genres.forEachIndexed { index, genre ->
             GenreRow(
                 genre = genre,
-                accent = RecapAccents[index % RecapAccents.size],
+                accent = RecapAccents[
+                    index % RecapAccents.size
+                ],
                 isMain = index == 0
             )
         }
@@ -685,7 +1004,11 @@ private fun GenreRow(
         Text(
             text = "·",
             color = accent,
-            fontSize = if (isMain) 26.sp else 19.sp,
+            fontSize = if (isMain) {
+                26.sp
+            } else {
+                19.sp
+            },
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(14.dp)
         )
@@ -700,7 +1023,11 @@ private fun GenreRow(
             fontFamily = FontFamily(
                 Font(R.font.unbounded_semibold)
             ),
-            fontSize = if (isMain) 27.sp else 19.sp,
+            fontSize = if (isMain) {
+                27.sp
+            } else {
+                19.sp
+            },
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
             maxLines = 1,
@@ -710,7 +1037,11 @@ private fun GenreRow(
         Text(
             text = "${genre.percentage}%",
             color = Color.White.copy(
-                alpha = if (isMain) 0.34f else 0.24f
+                alpha = if (isMain) {
+                    0.34f
+                } else {
+                    0.24f
+                }
             ),
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
@@ -727,7 +1058,11 @@ private fun AiAnalysisCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF100D06).copy(alpha = 0.82f))
+            .background(
+                Color(0xFF100D06).copy(
+                    alpha = 0.82f
+                )
+            )
             .border(
                 width = 0.8.dp,
                 brush = Brush.horizontalGradient(
@@ -740,16 +1075,22 @@ private fun AiAnalysisCard(
             )
             .padding(20.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(
+                        RoundedCornerShape(8.dp)
+                    )
                     .background(BrandGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
+                    imageVector =
+                        Icons.Rounded.AutoAwesome,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(14.dp)
@@ -786,14 +1127,20 @@ private fun AiAnalysisCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color.White.copy(alpha = 0.12f))
+                .background(
+                    Color.White.copy(
+                        alpha = 0.12f
+                    )
+                )
         )
 
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
             text = summary,
-            color = Color.White.copy(alpha = 0.66f),
+            color = Color.White.copy(
+                alpha = 0.66f
+            ),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             lineHeight = 24.sp
@@ -809,20 +1156,28 @@ private fun RecommendationList(
     onOpenSpotify: (String) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement =
+            Arrangement.spacedBy(12.dp)
     ) {
-        recommendations.forEach { recommendation ->
+        recommendations.forEach {
+                recommendation ->
+
             RecommendationRow(
                 recommendation = recommendation,
-                loading = loadingSpotifyArtist.equals(
-                    recommendation.name,
-                    ignoreCase = true
-                ),
+                loading =
+                    loadingSpotifyArtist.equals(
+                        recommendation.name,
+                        ignoreCase = true
+                    ),
                 onArtistClick = {
-                    onArtistClick(recommendation.name)
+                    onArtistClick(
+                        recommendation.name
+                    )
                 },
                 onOpenSpotify = {
-                    onOpenSpotify(recommendation.name)
+                    onOpenSpotify(
+                        recommendation.name
+                    )
                 }
             )
         }
@@ -844,22 +1199,36 @@ private fun RecommendationRow(
             .background(Color(0xFF151515))
             .border(
                 width = 0.8.dp,
-                color = Color.White.copy(alpha = 0.12f),
+                color = Color.White.copy(
+                    alpha = 0.12f
+                ),
                 shape = RoundedCornerShape(17.dp)
             )
             .padding(14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
             GlideImage(
                 model = recommendation.imageUrl,
-                contentDescription = recommendation.name,
+                contentDescription =
+                    recommendation.name,
                 contentScale = ContentScale.Crop,
-                loading = placeholder(R.drawable.ic_splash_logo),
-                failure = placeholder(R.drawable.ic_splash_logo),
+                loading = placeholder(
+                    R.drawable.ic_splash_logo
+                ),
+                failure = placeholder(
+                    R.drawable.ic_splash_logo
+                ),
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onArtistClick)
+                    .clip(
+                        RoundedCornerShape(12.dp)
+                    )
+                    .clickable(
+                        onClick = onArtistClick
+                    )
             )
 
             Spacer(modifier = Modifier.width(13.dp))
@@ -867,7 +1236,9 @@ private fun RecommendationRow(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onArtistClick)
+                    .clickable(
+                        onClick = onArtistClick
+                    )
             ) {
                 Text(
                     text = recommendation.name,
@@ -875,19 +1246,26 @@ private fun RecommendationRow(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow =
+                        TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(
+                    modifier = Modifier.height(2.dp)
+                )
 
                 Text(
-                    text = recommendation.genre.uppercase(),
-                    color = Color.White.copy(alpha = 0.42f),
+                    text =
+                        recommendation.genre.uppercase(),
+                    color = Color.White.copy(
+                        alpha = 0.42f
+                    ),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.1.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow =
+                        TextOverflow.Ellipsis
                 )
             }
 
@@ -899,7 +1277,10 @@ private fun RecommendationRow(
                         enabled = !loading,
                         onClick = onOpenSpotify
                     )
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                    .padding(
+                        horizontal = 14.dp,
+                        vertical = 9.dp
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (loading) {
@@ -910,22 +1291,29 @@ private fun RecommendationRow(
                     )
                 } else {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment =
+                            Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.PlayArrow,
+                            imageVector =
+                                Icons.Rounded.PlayArrow,
                             contentDescription = null,
                             tint = Color.Black,
-                            modifier = Modifier.size(14.dp)
+                            modifier =
+                                Modifier.size(14.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(
+                            modifier =
+                                Modifier.width(3.dp)
+                        )
 
                         Text(
                             text = "Spotify",
                             color = Color.Black,
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight =
+                                FontWeight.Bold
                         )
                     }
                 }
@@ -937,7 +1325,9 @@ private fun RecommendationRow(
 
             Text(
                 text = recommendation.reason,
-                color = Color.White.copy(alpha = 0.66f),
+                color = Color.White.copy(
+                    alpha = 0.66f
+                ),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 22.sp
@@ -952,7 +1342,9 @@ private fun RecapResultBackground() {
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFFF2D00).copy(alpha = 0.16f),
+                    Color(0xFFFF2D00).copy(
+                        alpha = 0.16f
+                    ),
                     Color.Transparent
                 ),
                 center = Offset(
@@ -971,7 +1363,9 @@ private fun RecapResultBackground() {
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFFF8A00).copy(alpha = 0.10f),
+                    Color(0xFFFF8A00).copy(
+                        alpha = 0.10f
+                    ),
                     Color.Transparent
                 ),
                 center = Offset(
@@ -998,7 +1392,9 @@ private fun formatPeriodLabel(
     ).format(Date(recap.generatedAt))
 
     return "${recap.period.title} · $date"
-        .replaceFirstChar { it.uppercase() }
+        .replaceFirstChar {
+            it.uppercase()
+        }
 }
 
 private fun openUrl(
@@ -1019,4 +1415,42 @@ private fun openUrl(
             Toast.LENGTH_LONG
         ).show()
     }
+}
+
+private fun shareRecapImage(
+    context: android.content.Context,
+    imageFile: File
+) {
+    val imageUri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        imageFile
+    )
+
+    val shareIntent = Intent(
+        Intent.ACTION_SEND
+    ).apply {
+        type = "image/jpeg"
+
+        putExtra(
+            Intent.EXTRA_STREAM,
+            imageUri
+        )
+
+        putExtra(
+            Intent.EXTRA_TEXT,
+            "Mi recap musical en Recapped"
+        )
+
+        addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+    }
+
+    context.startActivity(
+        Intent.createChooser(
+            shareIntent,
+            "Compartir recap"
+        )
+    )
 }
