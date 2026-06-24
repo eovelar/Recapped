@@ -30,6 +30,7 @@ import com.recapped.app.ui.recap.RecapResultRoute
 import com.recapped.app.ui.recap.RecapViewModel
 import com.recapped.app.ui.songdetail.SongDetailRoute
 import com.recapped.app.ui.theme.RecappedColors
+import kotlinx.coroutines.flow.first
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -91,12 +92,20 @@ fun RecappedNavGraph(
     val recapViewModel: RecapViewModel = hiltViewModel()
 
     LaunchedEffect(authState) {
+        if (authState is AuthUiState.Checking) {
+            return@LaunchedEffect
+        }
+
+        // Espera a que NavHost instale el grafo de navegación.
+        nav.currentBackStackEntryFlow.first()
+
         when (authState) {
             is AuthUiState.SignedIn -> {
                 nav.navigate(Routes.HOME) {
                     popUpTo(0) {
                         inclusive = true
                     }
+                    launchSingleTop = true
                 }
             }
 
@@ -105,6 +114,7 @@ fun RecappedNavGraph(
                     popUpTo(0) {
                         inclusive = true
                     }
+                    launchSingleTop = true
                 }
             }
 
@@ -113,6 +123,7 @@ fun RecappedNavGraph(
                     popUpTo(0) {
                         inclusive = true
                     }
+                    launchSingleTop = true
                 }
             }
 

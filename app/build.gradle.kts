@@ -32,6 +32,7 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.2.0"
+
         testInstrumentationRunner =
             "androidx.test.runner.AndroidJUnitRunner"
 
@@ -98,6 +99,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -159,4 +166,14 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // Testing unitario
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.13")
+    testImplementation(
+        "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
+    )
+    testImplementation(
+        "androidx.arch.core:core-testing:2.2.0"
+    )
 }
