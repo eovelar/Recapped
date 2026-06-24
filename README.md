@@ -1,5 +1,7 @@
 # Recapped
 
+<img width="1080" height="414" alt="recapped-logo" src="https://github.com/user-attachments/assets/f4c975c8-8a54-4398-826f-da8f8399e357" />
+
 Aplicación móvil nativa para Android que analiza los hábitos musicales de un
 usuario de Last.fm y genera recaps personalizados con estadísticas, rankings,
 géneros, recomendaciones mediante inteligencia artificial e integración con
