@@ -320,16 +320,9 @@ private fun StatsRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         StatCard(
-            value = "23",
-            label = "Racha",
-            highlighted = true,
-            modifier = Modifier.weight(1f)
-        )
-
-        StatCard(
             value = compact(totalScrobbles),
             label = "Scrobbles",
-            highlighted = false,
+            highlighted = true,
             modifier = Modifier.weight(1f)
         )
 

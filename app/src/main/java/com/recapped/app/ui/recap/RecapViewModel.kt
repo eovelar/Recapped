@@ -2,6 +2,8 @@ package com.recapped.app.ui.recap
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.recapped.app.data.repository.AppSettingsRepository
+import com.recapped.app.data.repository.AuthRepository
 import com.recapped.app.data.repository.RecapHistoryRepository
 import com.recapped.app.data.repository.RecapRepository
 import com.recapped.app.data.repository.SpotifyLinkResult
@@ -13,6 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -48,13 +51,42 @@ data class RecapUiState(
 class RecapViewModel @Inject constructor(
     private val recapRepository: RecapRepository,
     private val recapHistoryRepository: RecapHistoryRepository,
-    private val spotifyRepository: SpotifyRepository
+    private val spotifyRepository: SpotifyRepository,
+    private val authRepository: AuthRepository,
+    private val appSettingsRepository: AppSettingsRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RecapUiState())
     val state: StateFlow<RecapUiState> = _state.asStateFlow()
 
     private var pendingSpotifyArtist: String? = null
+
+    init {
+        observeDefaultPeriod()
+    }
+
+    private fun observeDefaultPeriod() {
+        viewModelScope.launch {
+            authRepository.currentUser.collectLatest { user ->
+                if (user == null) {
+                    return@collectLatest
+                }
+
+                appSettingsRepository
+                    .observeSettings(user.uid)
+                    .collect { settings ->
+                        if (!_state.value.isGenerating) {
+                            _state.update {
+                                it.copy(
+                                    selectedPeriod =
+                                        settings.defaultPeriod
+                                )
+                            }
+                        }
+                    }
+            }
+        }
+    }
 
     fun selectPeriod(period: RecapPeriod) {
         if (_state.value.isGenerating) {
@@ -89,7 +121,8 @@ class RecapViewModel @Inject constructor(
             }
 
             when (
-                val result = recapRepository.generateRecap(period)
+                val result =
+                    recapRepository.generateRecap(period)
             ) {
                 Resource.Loading -> Unit
 
@@ -147,7 +180,8 @@ class RecapViewModel @Inject constructor(
     ) {
         if (
             artistName.isBlank() ||
-            _state.value.spotifyAction is RecapSpotifyAction.Loading
+            _state.value.spotifyAction
+                    is RecapSpotifyAction.Loading
         ) {
             return
         }
@@ -157,7 +191,8 @@ class RecapViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update {
                 it.copy(
-                    spotifyAction = RecapSpotifyAction.Loading,
+                    spotifyAction =
+                        RecapSpotifyAction.Loading,
                     loadingSpotifyArtist = artistName
                 )
             }
@@ -172,7 +207,8 @@ class RecapViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update {
                 it.copy(
-                    spotifyAction = RecapSpotifyAction.Loading
+                    spotifyAction =
+                        RecapSpotifyAction.Loading
                 )
             }
 
