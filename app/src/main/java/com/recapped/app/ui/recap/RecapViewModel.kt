@@ -2,6 +2,7 @@ package com.recapped.app.ui.recap
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.recapped.app.data.repository.RecapHistoryRepository
 import com.recapped.app.data.repository.RecapRepository
 import com.recapped.app.data.repository.SpotifyLinkResult
 import com.recapped.app.data.repository.SpotifyRepository
@@ -46,6 +47,7 @@ data class RecapUiState(
 @HiltViewModel
 class RecapViewModel @Inject constructor(
     private val recapRepository: RecapRepository,
+    private val recapHistoryRepository: RecapHistoryRepository,
     private val spotifyRepository: SpotifyRepository
 ) : ViewModel() {
 
@@ -92,15 +94,30 @@ class RecapViewModel @Inject constructor(
                 Resource.Loading -> Unit
 
                 is Resource.Success -> {
-                    _state.update {
-                        it.copy(
-                            isGenerating = false,
-                            result = result.data,
-                            error = null
+                    try {
+                        recapHistoryRepository.saveRecap(
+                            result.data
                         )
-                    }
 
-                    onSuccess()
+                        _state.update {
+                            it.copy(
+                                isGenerating = false,
+                                result = result.data,
+                                error = null
+                            )
+                        }
+
+                        onSuccess()
+                    } catch (error: Exception) {
+                        _state.update {
+                            it.copy(
+                                isGenerating = false,
+                                result = result.data,
+                                error = error.message
+                                    ?: "El recap se generó, pero no pudo guardarse."
+                            )
+                        }
+                    }
                 }
 
                 is Resource.Error -> {
@@ -112,6 +129,16 @@ class RecapViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    fun openStoredRecap(recap: RecapResult) {
+        _state.update {
+            it.copy(
+                selectedPeriod = recap.period,
+                result = recap,
+                error = null
+            )
         }
     }
 

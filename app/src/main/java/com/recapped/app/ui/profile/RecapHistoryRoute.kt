@@ -26,9 +26,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,65 +38,30 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.recapped.app.ui.theme.BrandGradient
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.recapped.app.domain.model.RecapPeriod
+import com.recapped.app.domain.model.RecapResult
+import com.recapped.app.domain.model.StoredRecap
 import com.recapped.app.ui.theme.Unbounded
-
-data class RecapHistoryItem(
-    val periodType: String,
-    val title: String,
-    val songs: Int,
-    val topArtist: String,
-    val glowColor: Color
-)
-
-private val mockRecaps = listOf(
-    RecapHistoryItem(
-        periodType = "Mensual",
-        title = "Marzo 2026",
-        songs = 847,
-        topArtist = "Tame Impala",
-        glowColor = Color(0xFFFF2A00)
-    ),
-    RecapHistoryItem(
-        periodType = "Mensual",
-        title = "Febrero 2026",
-        songs = 723,
-        topArtist = "Khruangbin",
-        glowColor = Color(0xFFFF6A00)
-    ),
-    RecapHistoryItem(
-        periodType = "Mensual",
-        title = "Enero 2026",
-        songs = 654,
-        topArtist = "Stereolab",
-        glowColor = Color(0xFFFFC400)
-    ),
-    RecapHistoryItem(
-        periodType = "Trimestral",
-        title = "Diciembre 2025",
-        songs = 2341,
-        topArtist = "Floating Points",
-        glowColor = Color(0xFF7A35FF)
-    ),
-    RecapHistoryItem(
-        periodType = "Trimestral",
-        title = "Octubre 2025",
-        songs = 2341,
-        topArtist = "Floating Points",
-        glowColor = Color(0xFF7A35FF)
-    )
-)
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun RecapHistoryRoute(
     onBack: () -> Unit = {},
-    onRecapClick: (RecapHistoryItem) -> Unit = {}
+    onRecapClick: (RecapResult) -> Unit = {},
+    viewModel: RecapHistoryViewModel = hiltViewModel()
 ) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
     RecapHistoryScreen(
-        recaps = mockRecaps,
+        state = state,
         onBack = onBack,
         onRecapClick = onRecapClick
     )
@@ -102,9 +69,9 @@ fun RecapHistoryRoute(
 
 @Composable
 private fun RecapHistoryScreen(
-    recaps: List<RecapHistoryItem>,
+    state: RecapHistoryUiState,
     onBack: () -> Unit,
-    onRecapClick: (RecapHistoryItem) -> Unit
+    onRecapClick: (RecapResult) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -121,31 +88,91 @@ private fun RecapHistoryScreen(
                 )
             )
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .windowInsetsPadding(WindowInsets.navigationBars),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 14.dp,
-                bottom = 108.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item {
-                RecapHistoryHeader(onBack = onBack)
+        when {
+            state.isLoading -> {
+                CircularProgressIndicator(
+                    color = Color(0xFFFF4B16),
+                    modifier = Modifier
+                        .size(38.dp)
+                        .align(Alignment.Center)
+                )
             }
 
-            item {
-                Spacer(modifier = Modifier.height(2.dp))
+            state.error != null && state.recaps.isEmpty() -> {
+                HistoryMessage(
+                    title = "No pudimos cargar el historial",
+                    message = state.error,
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
 
-            items(recaps) { recap ->
+            else -> {
+                RecapHistoryList(
+                    recaps = state.recaps,
+                    onBack = onBack,
+                    onRecapClick = onRecapClick
+                )
+            }
+        }
+
+        if (state.isLoading || state.error != null && state.recaps.isEmpty()) {
+            RecapHistoryHeader(
+                onBack = onBack,
+                modifier = Modifier
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecapHistoryList(
+    recaps: List<StoredRecap>,
+    onBack: () -> Unit,
+    onRecapClick: (RecapResult) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 14.dp,
+            bottom = 108.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            RecapHistoryHeader(onBack = onBack)
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(2.dp))
+        }
+
+        if (recaps.isEmpty()) {
+            item {
+                HistoryMessage(
+                    title = "Todavía no hay recaps",
+                    message = "Los recaps que generes aparecerán en este historial.",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 80.dp)
+                )
+            }
+        } else {
+            items(
+                items = recaps,
+                key = { it.id }
+            ) { storedRecap ->
                 RecapHistoryCard(
-                    recap = recap,
-                    onClick = { onRecapClick(recap) }
+                    recap = storedRecap.recap,
+                    onClick = {
+                        onRecapClick(storedRecap.recap)
+                    }
                 )
             }
         }
@@ -154,10 +181,11 @@ private fun RecapHistoryScreen(
 
 @Composable
 private fun RecapHistoryHeader(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -198,9 +226,11 @@ private fun RecapHistoryHeader(
 
 @Composable
 private fun RecapHistoryCard(
-    recap: RecapHistoryItem,
+    recap: RecapResult,
     onClick: () -> Unit
 ) {
+    val glowColor = recapGlowColor(recap.period)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -222,8 +252,8 @@ private fun RecapHistoryCard(
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            recap.glowColor.copy(alpha = 0.32f),
-                            recap.glowColor.copy(alpha = 0.10f),
+                            glowColor.copy(alpha = 0.32f),
+                            glowColor.copy(alpha = 0.10f),
                             Color.Transparent
                         )
                     )
@@ -239,13 +269,14 @@ private fun RecapHistoryCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                PeriodPill(text = recap.periodType)
+                PeriodPill(text = recapPeriodLabel(recap.period))
 
                 Spacer(modifier = Modifier.weight(1f))
 
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
+                    imageVector =
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Abrir recap",
                     tint = Color.White.copy(alpha = 0.18f),
                     modifier = Modifier.size(18.dp)
                 )
@@ -254,7 +285,7 @@ private fun RecapHistoryCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = recap.title,
+                text = formatRecapDate(recap.generatedAt),
                 color = Color.White,
                 fontSize = 18.sp,
                 fontFamily = Unbounded,
@@ -272,8 +303,8 @@ private fun RecapHistoryCard(
                     .background(
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                recap.glowColor.copy(alpha = 0.78f),
-                                recap.glowColor.copy(alpha = 0.22f),
+                                glowColor.copy(alpha = 0.78f),
+                                glowColor.copy(alpha = 0.22f),
                                 Color.Transparent
                             )
                         )
@@ -286,11 +317,9 @@ private fun RecapHistoryCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom
             ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = recap.songs.toString(),
+                        text = recap.totalScrobbles.toString(),
                         color = Color.White,
                         fontSize = 23.sp,
                         fontFamily = Unbounded,
@@ -300,29 +329,29 @@ private fun RecapHistoryCard(
                     )
 
                     Text(
-                        text = "CANCIONES",
+                        text = "REPRODUCCIONES",
                         color = Color.White.copy(alpha = 0.24f),
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.4.sp,
+                        letterSpacing = 1.2.sp,
                         lineHeight = 9.sp
                     )
                 }
 
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "Top artista",
                         color = Color.White.copy(alpha = 0.28f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Normal
+                        fontSize = 10.sp
                     )
 
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = recap.topArtist,
+                        text = recap.topArtists
+                            .firstOrNull()
+                            ?.name
+                            ?: "Sin datos",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -336,9 +365,38 @@ private fun RecapHistoryCard(
 }
 
 @Composable
-private fun PeriodPill(
-    text: String
+private fun HistoryMessage(
+    title: String,
+    message: String,
+    modifier: Modifier = Modifier
 ) {
+    Column(
+        modifier = modifier.padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontFamily = Unbounded,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = message,
+            color = Color.White.copy(alpha = 0.45f),
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun PeriodPill(text: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(99.dp))
@@ -358,4 +416,34 @@ private fun PeriodPill(
             fontWeight = FontWeight.SemiBold
         )
     }
+}
+
+private fun recapPeriodLabel(period: RecapPeriod): String {
+    return when (period) {
+        RecapPeriod.Week -> "Semanal"
+        RecapPeriod.Month -> "Mensual"
+        RecapPeriod.Quarter -> "Trimestral"
+        RecapPeriod.Year -> "Anual"
+    }
+}
+
+private fun recapGlowColor(period: RecapPeriod): Color {
+    return when (period) {
+        RecapPeriod.Week -> Color(0xFFFF2A00)
+        RecapPeriod.Month -> Color(0xFFFF6A00)
+        RecapPeriod.Quarter -> Color(0xFF7A35FF)
+        RecapPeriod.Year -> Color(0xFFFFC400)
+    }
+}
+
+private fun formatRecapDate(timestamp: Long): String {
+    val formatter = SimpleDateFormat(
+        "d 'de' MMMM 'de' yyyy",
+        Locale("es", "AR")
+    )
+
+    return formatter.format(Date(timestamp))
+        .replaceFirstChar { character ->
+            character.uppercase()
+        }
 }

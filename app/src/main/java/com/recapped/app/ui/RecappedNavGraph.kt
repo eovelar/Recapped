@@ -209,9 +209,7 @@ fun RecappedNavGraph(
                     onBack = {
                         nav.popBackStack()
                     },
-                    onShare = {
-                        // Implementaremos compartir después.
-                    },
+                    onShare = {},
                     onArtistClick = { artistName ->
                         nav.navigate(
                             Routes.detail(artistName)
@@ -251,6 +249,13 @@ fun RecappedNavGraph(
                 RecapHistoryRoute(
                     onBack = {
                         nav.popBackStack()
+                    },
+                    onRecapClick = { recap ->
+                        recapViewModel.openStoredRecap(recap)
+
+                        nav.navigate(Routes.RECAP_RESULT) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
